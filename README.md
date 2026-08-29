@@ -4,9 +4,19 @@
 
 - `AGIA_MGC_014_OPERATIONAL`: Ingeniero IA de Control de Proyectos y PMO. Analiza hitos, responsables, dependencias, desviaciones, riesgos, evidencias y necesidades de recuperación; genera informes PMO locales sujetos a revisión humana.
 - `AGIA_MGC_015_OPERATIONAL`: Analista IA de procesos, SOP y mejora continua para Miner Global Connect.
-- `AGIA_MGC_016_READY_FOR_REAL_WORK`: Coordinador IA de Operaciones de Comercio Exterior y Logística. Controla expedientes por embarque, documentos, hitos, Incoterm, seguro, custodia, entrega, incidencias y alertas.
+- `AGIA_MGC_016_OPERATIONAL`: Coordinador IA de Operaciones de Comercio Exterior y Logística. Controla expedientes por embarque, documentos, hitos, Incoterm, seguro, custodia, entrega, incidencias y alertas.
 
 Analista IA local de procesos, SOP y mejora continua para Miner Global Connect.
+
+## Estado oficial de AGIA-MGC-016
+
+`AGIA_MGC_016_OPERATIONAL`
+
+Fecha de aprobación profesional: 2026-08-29. Tipo de validación: primera misión profesional real. Área validada: Operaciones de Comercio Exterior y Logística. Resultado: **APROBADO**.
+
+La aprobación de AGIA-MGC-016 no aprueba operaciones, contrapartes, pagos, contratos, embarques ni recomendaciones analizadas. Las decisiones corporativas permanecen bajo aprobación humana.
+
+Estado del piso MGC-05: AGIA-MGC-014 = OPERATIONAL; AGIA-MGC-015 = OPERATIONAL; AGIA-MGC-016 = OPERATIONAL; Backend MGC-05 = PENDIENTE.
 
 ## Estado oficial de AGIA-MGC-014
 
