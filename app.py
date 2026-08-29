@@ -6,12 +6,14 @@ import streamlit as st
 from agia_mgc_015.agent import run as run_process_agent
 from agia_mgc_014.agent import run_with_result as run_pmo_agent
 from agia_mgc_016.agent import run_with_result as run_operations_agent
+from mgc_05.backend import create_case, run_case
 
 
 AGENTS = {
     'AGIA-MGC-014 — Ingeniero IA de Control de Proyectos y PMO': 'pmo',
     'AGIA-MGC-015 — Analista IA de Procesos, SOP y Mejora Continua': 'process',
     'AGIA-MGC-016 — Coordinador IA de Operaciones de Comercio Exterior y Logística': 'operations',
+    'MGC-05 Operaciones y PMO — Backend departamental': 'department',
 }
 
 st.set_page_config(page_title='Miner Global Connect Intelligence', layout='wide')
@@ -21,7 +23,7 @@ selected = st.selectbox('Agente', list(AGENTS))
 mission = st.text_area('Misión o instrucción profesional', height=150)
 files = st.file_uploader(
     'Documentos de trabajo',
-    type=['txt', 'md', 'docx', 'pdf', 'csv', 'xlsx'] if AGENTS[selected] in {'pmo', 'operations'} else ['txt', 'md', 'docx', 'pdf'],
+    type=['txt', 'md', 'docx', 'pdf', 'csv', 'xlsx'] if AGENTS[selected] in {'pmo', 'operations', 'department'} else ['txt', 'md', 'docx', 'pdf'],
     accept_multiple_files=True,
 )
 
@@ -36,7 +38,12 @@ if st.button('Generar informe profesional', type='primary'):
             path = folder / file.name
             path.write_bytes(file.getvalue())
             paths.append(path)
-        if AGENTS[selected] == 'pmo':
+        if AGENTS[selected] == 'department':
+            case = create_case(mission, paths, Path('outputs') / 'mgc_05')
+            version, details = run_case(case)
+            target, issues = version / 'MGC-05_DEPARTMENT_REPORT.md', []
+            st.caption(f'Expediente: {case.name} · Versión {details["version"]} · Revisión humana requerida')
+        elif AGENTS[selected] == 'pmo':
             result = run_pmo_agent(mission, paths, Path('outputs'))
             target, issues = result.report_path, result.review_issues
         elif AGENTS[selected] == 'operations':
