@@ -2,10 +2,18 @@
 
 ## Agentes disponibles
 
-- `AGIA_MGC_014_READY_FOR_REAL_WORK`: Ingeniero IA de Control de Proyectos y PMO. Analiza hitos, responsables, dependencias, desviaciones, riesgos, evidencias y necesidades de recuperación; genera informes PMO locales sujetos a revisión humana.
+- `AGIA_MGC_014_OPERATIONAL`: Ingeniero IA de Control de Proyectos y PMO. Analiza hitos, responsables, dependencias, desviaciones, riesgos, evidencias y necesidades de recuperación; genera informes PMO locales sujetos a revisión humana.
 - `AGIA_MGC_015_OPERATIONAL`: Analista IA de procesos, SOP y mejora continua para Miner Global Connect.
 
 Analista IA local de procesos, SOP y mejora continua para Miner Global Connect.
+
+## Estado oficial de AGIA-MGC-014
+
+`AGIA_MGC_014_OPERATIONAL`
+
+Fecha de aprobación profesional: 2026-08-29. Tipo de validación: primera misión profesional real. Misión: Control PMO del proyecto de implementación MGC-05 Operaciones y PMO. Resultado: **APROBADO**.
+
+AGIA-MGC-014 demostró competencia profesional suficiente para desempeñar su función actual de Control de Proyectos y PMO. Esta aprobación no constituye aprobación automática de sus recomendaciones; las decisiones corporativas continúan sujetas a aprobación humana conforme al gobierno vigente.
 
 ## Estado oficial de AGIA-MGC-015
 
