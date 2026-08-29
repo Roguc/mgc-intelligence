@@ -4,6 +4,7 @@
 
 - `AGIA_MGC_014_OPERATIONAL`: Ingeniero IA de Control de Proyectos y PMO. Analiza hitos, responsables, dependencias, desviaciones, riesgos, evidencias y necesidades de recuperación; genera informes PMO locales sujetos a revisión humana.
 - `AGIA_MGC_015_OPERATIONAL`: Analista IA de procesos, SOP y mejora continua para Miner Global Connect.
+- `AGIA_MGC_016_READY_FOR_REAL_WORK`: Coordinador IA de Operaciones de Comercio Exterior y Logística. Controla expedientes por embarque, documentos, hitos, Incoterm, seguro, custodia, entrega, incidencias y alertas.
 
 Analista IA local de procesos, SOP y mejora continua para Miner Global Connect.
 
@@ -26,5 +27,7 @@ La condición operacional del agente no aprueba automáticamente los procesos ni
 Ejecute `python -m streamlit run app.py`. Escriba una misión, cargue TXT, Markdown, DOCX o PDF y exporte el informe profesional. Los resultados se guardan localmente en `outputs/` y no usan APIs externas.
 
 AGIA-MGC-014 admite además CSV y XLSX para información estructurada de proyectos. No aprueba proyectos, cambios, pagos, contratos ni compromisos externos; sus resultados requieren aprobación humana cuando corresponda.
+
+AGIA-MGC-016 admite TXT, Markdown, DOCX, PDF, CSV y XLSX. Organiza información operacional y no aprueba operaciones, pagos, contratos ni compromisos externos.
 
 Limitación: el análisis inicial es determinista y depende de la información proporcionada; no verifica autenticidad externa.
