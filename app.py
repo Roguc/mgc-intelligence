@@ -6,7 +6,7 @@ import streamlit as st
 from agia_mgc_015.agent import run as run_process_agent
 from agia_mgc_014.agent import run_with_result as run_pmo_agent
 from agia_mgc_016.agent import run_with_result as run_operations_agent
-from mgc_05.backend import create_case, run_case
+from mgc_05.backend import approve_case, correct_case, create_case, run_case
 
 
 AGENTS = {
@@ -56,3 +56,19 @@ if st.button('Generar informe profesional', type='primary'):
     if issues:
         st.warning('\n'.join(issues))
     st.download_button('Exportar informe', text, target.name, 'text/markdown')
+
+if AGENTS[selected] == 'department':
+    st.divider()
+    st.subheader('Revisión humana del expediente')
+    case_id = st.text_input('ID de expediente existente')
+    correction = st.text_area('Corrección humana para nueva versión')
+    if st.button('Generar versión corregida'):
+        case = Path('outputs') / 'mgc_05' / case_id
+        version, _ = correct_case(case, correction)
+        st.success(f'Nueva versión creada: {version.name}')
+    decision = st.selectbox('Decisión humana de cierre', ['APROBADO', 'REQUIERE CORRECCIÓN'])
+    rationale = st.text_area('Fundamento de la decisión')
+    if st.button('Registrar decisión humana'):
+        case = Path('outputs') / 'mgc_05' / case_id
+        record = approve_case(case, decision, rationale)
+        st.success(f'Decisión registrada para versión {record["version"]}.')
