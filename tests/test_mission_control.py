@@ -1,6 +1,6 @@
 import json,tempfile,unittest
 from pathlib import Path
-from mission_control import case_artifacts,executive_status,human_gate_action,load_case,selected_agent_summary
+from mission_control import case_artifacts,evidence_summary,executive_status,human_gate_action,load_case,selected_agent_summary
 class Tests(unittest.TestCase):
  def test_case_view_and_human_gate(self):
   with tempfile.TemporaryDirectory() as t:
@@ -9,3 +9,5 @@ class Tests(unittest.TestCase):
    self.assertEqual("case",load_case(c)["case_id"]);self.assertEqual(4,len(case_artifacts(c)));self.assertEqual("approved",human_gate_action(c,"APROBAR","ok",lambda *x:"approved",lambda *x:"corrected"));self.assertEqual("corrected",human_gate_action(c,"CORREGIR","fix",lambda *x:"approved",lambda *x:"corrected"))
  def test_executive_status(self):
   self.assertIn("no existe informe profesional",executive_status({"latest":{"status":"INFRASTRUCTURE_BLOCKED"}})["blocked"]);self.assertEqual(1,len(selected_agent_summary(["014"])))
+ def test_public_helpers_are_importable(self):
+  self.assertTrue(all(callable(item) for item in (case_artifacts,evidence_summary,executive_status,human_gate_action,load_case,selected_agent_summary)))
