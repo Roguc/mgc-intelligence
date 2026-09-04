@@ -1,74 +1,42 @@
 from pathlib import Path
 import tempfile
-
 import streamlit as st
-
-from agia_mgc_015.agent import run as run_process_agent
-from agia_mgc_014.agent import run_with_result as run_pmo_agent
-from agia_mgc_016.agent import run_with_result as run_operations_agent
-from mgc_05.backend import approve_case, correct_case, create_case, run_case
-
-
-AGENTS = {
-    'AGIA-MGC-014 — Ingeniero IA de Control de Proyectos y PMO': 'pmo',
-    'AGIA-MGC-015 — Analista IA de Procesos, SOP y Mejora Continua': 'process',
-    'AGIA-MGC-016 — Coordinador IA de Operaciones de Comercio Exterior y Logística': 'operations',
-    'MGC-05 Operaciones y PMO — Backend departamental': 'department',
-}
-
-st.set_page_config(page_title='Miner Global Connect Intelligence', layout='wide')
-st.title('Miner Global Connect Intelligence')
-st.caption('MGC-05 Operaciones y PMO · Ejecución local · Sin APIs externas')
-selected = st.selectbox('Agente', list(AGENTS))
-mission = st.text_area('Misión o instrucción profesional', height=150)
-files = st.file_uploader(
-    'Documentos de trabajo',
-    type=['txt', 'md', 'docx', 'pdf', 'csv', 'xlsx'] if AGENTS[selected] in {'pmo', 'operations', 'department'} else ['txt', 'md', 'docx', 'pdf'],
-    accept_multiple_files=True,
-)
-
-if st.button('Generar informe profesional', type='primary'):
-    if not mission.strip():
-        st.error('Ingrese una misión.')
-        st.stop()
-    with tempfile.TemporaryDirectory() as temp:
-        folder = Path(temp)
-        paths = []
-        for file in files or []:
-            path = folder / file.name
-            path.write_bytes(file.getvalue())
-            paths.append(path)
-        if AGENTS[selected] == 'department':
-            case = create_case(mission, paths, Path('outputs') / 'mgc_05')
-            version, details = run_case(case)
-            target, issues = version / 'MGC-05_DEPARTMENT_REPORT.md', []
-            st.caption(f'Expediente: {case.name} · Versión {details["version"]} · Revisión humana requerida')
-        elif AGENTS[selected] == 'pmo':
-            result = run_pmo_agent(mission, paths, Path('outputs'))
-            target, issues = result.report_path, result.review_issues
-        elif AGENTS[selected] == 'operations':
-            result = run_operations_agent(mission, paths, Path('outputs'))
-            target, issues = result.report_path, result.review_issues
-        else:
-            target, issues = run_process_agent(mission, paths, Path('outputs'))
-    text = target.read_text(encoding='utf-8')
-    st.markdown(text)
-    if issues:
-        st.warning('\n'.join(issues))
-    st.download_button('Exportar informe', text, target.name, 'text/markdown')
-
-if AGENTS[selected] == 'department':
-    st.divider()
-    st.subheader('Revisión humana del expediente')
-    case_id = st.text_input('ID de expediente existente')
-    correction = st.text_area('Corrección humana para nueva versión')
-    if st.button('Generar versión corregida'):
-        case = Path('outputs') / 'mgc_05' / case_id
-        version, _ = correct_case(case, correction)
-        st.success(f'Nueva versión creada: {version.name}')
-    decision = st.selectbox('Decisión humana de cierre', ['APROBADO', 'REQUIERE CORRECCIÓN'])
-    rationale = st.text_area('Fundamento de la decisión')
-    if st.button('Registrar decisión humana'):
-        case = Path('outputs') / 'mgc_05' / case_id
-        record = approve_case(case, decision, rationale)
-        st.success(f'Decisión registrada para versión {record["version"]}.')
+from corporate.platform import build_mgc_platform
+from mgc_05.backend import approve_case,correct_case,create_case,run_case
+from mission_control import case_artifacts,human_gate_action,load_case
+ROOT=Path("outputs")/"mgc_05";platform=build_mgc_platform()
+st.set_page_config(page_title="LNH Mission Control",layout="wide")
+st.markdown("<style>[data-testid='stAppViewContainer']{background:#f6f3eb;color:#242620}[data-testid='stSidebar']{background:#eeece4;border-right:1px solid #ddd8cb}h1,h2,h3{color:#293b29}.stButton>button{background:#657d5c;color:white;border:0;border-radius:7px}.card{background:#fbfaf6;border:1px solid #e1ddd1;border-radius:10px;padding:16px;margin-bottom:10px}.badge{background:#e5ebdf;color:#40533d;border-radius:14px;padding:3px 9px}</style>",unsafe_allow_html=True)
+st.sidebar.markdown("# ✧ LNH");st.sidebar.caption("HOLDING");st.sidebar.markdown("---");st.sidebar.markdown("Inicio  \nEmpresas  \nPisos  \nAgentes  \nMisiones  \nEvidencia");st.sidebar.markdown("---");st.sidebar.caption("Vista corporativa")
+st.title("Mission Control");st.caption("LNH → Miner Global Connect → MGC-05 Operaciones y PMO")
+left,right=st.columns([1.1,1])
+with left:
+ st.subheader("Estructura corporativa")
+ for unit in platform.organizations.all():st.markdown(f"<div class='card'><b>{unit.name}</b><br><span class='badge'>{unit.kind}</span></div>",unsafe_allow_html=True)
+with right:
+ st.subheader("Piso activo");st.markdown("<div class='card'><b>MGC-05 · Operaciones y PMO</b><br>Gerente de Piso · 3 agentes operacionales</div>",unsafe_allow_html=True);st.write("AGIA-MGC-014 · PMO");st.write("AGIA-MGC-015 · Procesos/SOP");st.write("AGIA-MGC-016 · Comercio exterior y logística")
+st.divider();st.header("Nueva misión")
+mission=st.text_area("Misión en lenguaje natural",placeholder="Describa la misión y el resultado requerido.",height=120);files=st.file_uploader("Documentos de evidencia",type=["txt","md","docx","pdf","csv","xlsx"],accept_multiple_files=True)
+if st.button("Crear expediente y ejecutar Gerente de Piso",type="primary"):
+ if not mission.strip():st.error("Ingrese una misión.")
+ else:
+  with tempfile.TemporaryDirectory() as temp:
+   paths=[]
+   for uploaded in files or []:
+    path=Path(temp)/uploaded.name;path.write_bytes(uploaded.getvalue());paths.append(path)
+   try:
+    case=create_case(mission,paths,ROOT);_,details=run_case(case);st.session_state["active_case"]=str(case);st.success(f"Expediente creado: {case.name} · Estado: {details['status']}")
+   except Exception as exc:st.error(f"No se pudo ejecutar el piso: {exc}")
+st.divider();st.header("Expediente y Human Gate")
+available=sorted([p for p in ROOT.iterdir() if p.is_dir()]) if ROOT.exists() else [];choices=[""]+[p.name for p in available];default=Path(st.session_state.get("active_case","")).name;case_id=st.selectbox("Expediente",choices,index=choices.index(default) if default in choices else 0)
+if case_id:
+ case=ROOT/case_id;info=load_case(case);latest=info["latest"];a,b,c=st.columns(3);a.metric("Estado",info["status"]);b.metric("Documentos",len(info["documents"]));c.metric("Versión",latest["version"] if latest else 0)
+ if latest:
+  st.subheader("Plan, agentes y progreso");st.json({"agentes":latest.get("routes",[]),"estado":latest.get("status"),"errores":latest.get("errors",[])})
+  for artifact in case_artifacts(case):st.download_button(f"Descargar {artifact.name}",artifact.read_bytes(),artifact.name)
+  report=case/f"v{latest['version']:03d}"/"MGC-05_DEPARTMENT_REPORT.md"
+  if report.exists():st.subheader("Consolidado del Gerente de Piso");st.markdown(report.read_text(encoding="utf-8"))
+ decision=st.selectbox("Human Gate",["APROBAR","CORREGIR","RECHAZAR"]);rationale=st.text_area("Fundamento / instrucción de corrección")
+ if st.button("Registrar decisión humana"):
+  try:human_gate_action(case,decision,rationale,approve_case,correct_case);st.success("Decisión humana registrada.")
+  except Exception as exc:st.error(str(exc))
