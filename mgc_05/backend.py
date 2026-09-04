@@ -6,6 +6,8 @@ from agia_mgc_014.agent import run as run_014
 from agia_mgc_015.agent import run as run_015
 from agia_mgc_016.agent import run as run_016
 from .managerial import SpecialistOutput, build_managerial_record, render_department_report
+from corporate.models import Mission
+from corporate.platform import build_mgc_platform
 EXTERNAL=('email','whatsapp','pago','payment','contrato','contract','firmar','publicar')
 def now(): return datetime.now(timezone.utc).isoformat()
 def dump(p,x): p.write_text(json.dumps(x,ensure_ascii=False,indent=2),encoding='utf-8')
@@ -31,7 +33,9 @@ def create_case(mission,paths,root):
  reg=[]
  for s in paths:
   d=docs/s.name; shutil.copy2(s,d); reg.append({'name':s.name,'path':str(d),'sha256':sha256(d.read_bytes()).hexdigest()})
- state={'case_id':cid,'mission':mission,'documents':reg,'status':'OPEN','versions':[],'audit':[{'at':now(),'event':'CASE_CREATED'}]}; dump(case/'case.json',state); return case
+ state={'case_id':cid,'mission':mission,'documents':reg,'status':'OPEN','versions':[],'audit':[{'at':now(),'event':'CASE_CREATED'}]}
+ platform=build_mgc_platform(); corporate_mission=platform.missions.register(Mission('MISSION-'+cid,mission,'MGC-05')); corporate=platform.register_case(corporate_mission.mission_id,cid,[Path(x['path']) for x in reg])
+ state['corporate_mission_id']=corporate_mission.mission_id;dump(case/'corporate_case.json',corporate);dump(case/'case.json',state); return case
 ROLE_BRIEFS={
  '014':'Actúa exclusivamente como Control de Proyectos y PMO. Identifica hitos, dependencias, responsables, riesgos, desviaciones y datos faltantes; no inventes baseline, fechas ni responsables.',
  '015':'Actúa exclusivamente como Analista de Procesos, SOP y Mejora Continua. Reconstruye el proceso documentado, controles, vacíos, contradicciones y mejoras propuestas; no sustituyas análisis legal, financiero ni logístico.',
