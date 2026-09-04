@@ -21,3 +21,7 @@ def executive_status(case_info: dict) -> dict:
 def selected_agent_summary(routes: list[str]) -> list[str]:
  labels={"014":"Control de Proyectos y PMO","015":"Procesos, SOP y Mejora Continua","016":"Comercio Exterior y Logística"}
  return [f"AGIA-MGC-{item}: {labels.get(item,'Especialidad registrada')} — seleccionado por las capacidades detectadas en la misión." for item in routes]
+
+def evidence_summary(case: Path) -> dict:
+ ledger=json.loads((case/"data_evidence.json").read_text(encoding="utf-8"))
+ return {"sources":len(ledger["sources"]),"evidence":len(ledger["evidence"]),"findings":len(ledger["findings"]),"outputs":len(ledger["outputs"]),"tco":ledger["tco"]}

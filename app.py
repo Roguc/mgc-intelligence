@@ -3,7 +3,7 @@ import tempfile
 import streamlit as st
 from corporate.platform import build_mgc_platform
 from mgc_05.backend import approve_case,correct_case,create_case,run_case
-from mission_control import case_artifacts,executive_status,human_gate_action,load_case,selected_agent_summary
+from mission_control import case_artifacts,evidence_summary,executive_status,human_gate_action,load_case,selected_agent_summary
 ROOT=Path("outputs")/"mgc_05";platform=build_mgc_platform()
 st.set_page_config(page_title="LNH Mission Control",layout="wide")
 st.markdown("<style>[data-testid='stAppViewContainer']{background:#f6f3eb;color:#242620}[data-testid='stSidebar']{background:#eeece4;border-right:1px solid #ddd8cb}h1,h2,h3{color:#293b29}.stButton>button{background:#657d5c;color:white;border:0;border-radius:7px}.card{background:#fbfaf6;border:1px solid #e1ddd1;border-radius:10px;padding:16px;margin-bottom:10px}.badge{background:#e5ebdf;color:#40533d;border-radius:14px;padding:3px 9px}</style>",unsafe_allow_html=True)
@@ -24,7 +24,11 @@ elif page=="Agentes":
  st.title("Agentes de MGC-05")
  for agent in platform.agents.all():st.markdown(f"<div class='card'><b>{agent.agent_id}</b><br>{agent.name}<br><span class='badge'>{agent.status}</span></div>",unsafe_allow_html=True)
 elif page=="Evidencia":
- st.title("Evidencia");st.write("Seleccione un expediente en Misiones para descargar únicamente los artefactos registrados.")
+ st.title("Evidencia y costos");available=sorted([p for p in ROOT.iterdir() if p.is_dir()]) if ROOT.exists() else [];case_id=st.selectbox("Expediente con trazabilidad",[""]+[p.name for p in available])
+ if case_id:
+  summary=evidence_summary(ROOT/case_id);a,b,c,d=st.columns(4);a.metric("Fuentes",summary["sources"]);b.metric("Evidencias",summary["evidence"]);c.metric("Hallazgos",summary["findings"]);d.metric("Outputs",summary["outputs"])
+  tco=summary["tco"];st.subheader("TCO ejecutivo");st.write(f"Costo real: {tco['budget']['actual']} · Forecast: {tco['budget']['forecast']} · EAC: {tco['budget']['eac']} · GPU horas: {tco['usage']['gpu_hours']} · Reprocesos: {tco['usage']['retries']}")
+  with st.expander("Detalle técnico descargable"):st.download_button("Descargar ledger Data / Evidence / TCO",(ROOT/case_id/"data_evidence.json").read_bytes(),"data_evidence.json")
 else:
  st.title("Misiones · MGC-05");st.caption("LNH → Miner Global Connect → MGC-05 Operaciones y PMO")
  mission=st.text_area("Misión en lenguaje natural",placeholder="Describa la misión y el resultado requerido.",height=120)

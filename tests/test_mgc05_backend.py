@@ -1,13 +1,13 @@
 import os
 os.environ['MGC_INFERENCE_MODE'] = 'rules'
-import tempfile,unittest
+import tempfile,unittest,json
 from pathlib import Path
 from unittest.mock import patch
 from mgc_05.backend import approve_case,create_case,correct_case,run_case
 class Tests(unittest.TestCase):
  def test_cycle(self):
   with tempfile.TemporaryDirectory() as t:
-   r=Path(t);d=r/'x.txt';d.write_text('INCOTERMS: FOB\nIRON ORE',encoding='utf-8');c=create_case('Controlar embarque y proyecto',[d],r/'cases');self.assertTrue((c/'corporate_case.json').exists());folder,v=run_case(c);self.assertEqual(v['routes'],['014','016']);self.assertTrue(all('handoff' in x for x in v['reports']));_,v=correct_case(c,'revisar seguro');self.assertEqual(v['version'],2);self.assertEqual(approve_case(c,'APROBADO','ok')['version'],2)
+   r=Path(t);d=r/'x.txt';d.write_text('INCOTERMS: FOB\nIRON ORE',encoding='utf-8');c=create_case('Controlar embarque y proyecto',[d],r/'cases');self.assertTrue((c/'corporate_case.json').exists());folder,v=run_case(c);self.assertEqual(v['routes'],['014','016']);self.assertTrue(all('handoff' in x for x in v['reports']));ledger=json.loads((c/'data_evidence.json').read_text(encoding='utf-8'));self.assertEqual(1,len(ledger['sources']));self.assertTrue(ledger['outputs']);_,v=correct_case(c,'revisar seguro');self.assertEqual(v['version'],2);self.assertEqual(approve_case(c,'APROBADO','ok')['version'],2)
  def test_infrastructure_failure_aborts_before_dispatch(self):
   with tempfile.TemporaryDirectory() as t:
    r=Path(t);d=r/'x.txt';d.write_text('INCOTERMS: FOB\nIRON ORE',encoding='utf-8');c=create_case('Controlar embarque',[d],r/'cases')

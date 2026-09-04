@@ -9,6 +9,7 @@ from .managerial import SpecialistOutput, build_managerial_record, render_depart
 from .floor_manager import FloorManager
 from corporate.models import Mission
 from corporate.platform import build_mgc_platform
+from corporate.data_evidence import initialize,record_execution,record_human_decision
 EXTERNAL=('email','whatsapp','pago','payment','contrato','contract','firmar','publicar')
 def now(): return datetime.now(timezone.utc).isoformat()
 def dump(p,x): p.write_text(json.dumps(x,ensure_ascii=False,indent=2),encoding='utf-8')
@@ -32,7 +33,7 @@ def create_case(mission,paths,root):
   d=docs/s.name; shutil.copy2(s,d); reg.append({'name':s.name,'path':str(d),'sha256':sha256(d.read_bytes()).hexdigest()})
  state={'case_id':cid,'mission':mission,'documents':reg,'status':'OPEN','versions':[],'audit':[{'at':now(),'event':'CASE_CREATED'}]}
  platform=build_mgc_platform(); corporate_mission=platform.missions.register(Mission('MISSION-'+cid,mission,'MGC-05')); corporate=platform.register_case(corporate_mission.mission_id,cid,[Path(x['path']) for x in reg])
- state['corporate_mission_id']=corporate_mission.mission_id;dump(case/'corporate_case.json',corporate);dump(case/'case.json',state); return case
+ state['corporate_mission_id']=corporate_mission.mission_id;dump(case/'corporate_case.json',corporate);dump(case/'data_evidence.json',initialize(cid,reg,os.environ.get('MGC_INFERENCE_MODE','PENDIENTE')));dump(case/'case.json',state); return case
 ROLE_BRIEFS={
  '014':'Actúa exclusivamente como Control de Proyectos y PMO. Identifica hitos, dependencias, responsables, riesgos, desviaciones y datos faltantes; no inventes baseline, fechas ni responsables.',
  '015':'Actúa exclusivamente como Analista de Procesos, SOP y Mejora Continua. Reconstruye el proceso documentado, controles, vacíos, contradicciones y mejoras propuestas; no sustituyas análisis legal, financiero ni logístico.',
@@ -53,7 +54,7 @@ def execute(case,mission,paths,correction=None):
  for item in reports:item['handoff']='Resultado profesional registrado para coordinación; ver handoffs.json.'
  dump(out/'handoffs.json',record['handoffs']);dump(out/'contradictions.json',record['contradictions']);dump(out/'human_decisions_required.json',record['human_decisions'])
  if errors:text+='\n\n## Alertas de ejecución\n'+'\n'.join('- '+x['agent']+': '+x['error'] for x in errors)
- (out/'MGC-05_DEPARTMENT_REPORT.md').write_text(text,encoding='utf-8'); v={'version':n,'at':now(),'routes':agents,'reports':reports,'errors':errors,'correction':correction,'status':record['departmental_status'],'health_check':health,'handoffs':record['handoffs'],'contradictions':record['contradictions'],'human_decisions':record['human_decisions']}; dump(out/'version.json',v); s['versions'].append(v);s['status']=record['departmental_status'];s['audit'].append({'at':now(),'event':'HANDOFFS_COMPLETED','version':n});s['audit'].append({'at':now(),'event':'VERSION_CREATED','version':n});dump(case/'case.json',s);return out,v
+ (out/'MGC-05_DEPARTMENT_REPORT.md').write_text(text,encoding='utf-8'); v={'version':n,'at':now(),'routes':agents,'reports':reports,'errors':errors,'correction':correction,'status':record['departmental_status'],'health_check':health,'handoffs':record['handoffs'],'contradictions':record['contradictions'],'human_decisions':record['human_decisions']}; dump(out/'version.json',v);ledger=load(case/'data_evidence.json');dump(case/'data_evidence.json',record_execution(ledger,n,reports,record['contradictions'],os.environ.get('MGC_INFERENCE_MODE','PENDIENTE')));s['versions'].append(v);s['status']=record['departmental_status'];s['audit'].append({'at':now(),'event':'HANDOFFS_COMPLETED','version':n});s['audit'].append({'at':now(),'event':'VERSION_CREATED','version':n});dump(case/'case.json',s);return out,v
 def run_case(case):
  s=load(case/'case.json');return execute(case,s['mission'],[Path(x['path']) for x in s['documents']])
 def correct_case(case,correction):
@@ -62,4 +63,4 @@ def correct_case(case,correction):
 def approve_case(case,decision,rationale):
  s=load(case/'case.json')
  if not s['versions']:raise ValueError('No existe versión.')
- r={'decision':decision,'rationale':rationale,'at':now(),'version':s['versions'][-1]['version']};dump(case/'HUMAN_DECISION_RECORD.json',r);s['status']='CLOSED' if decision.casefold()=='aprobado' else 'OPEN';s['audit'].append({'at':now(),'event':'HUMAN_DECISION','decision':decision});dump(case/'case.json',s);return r
+ r={'decision':decision,'rationale':rationale,'at':now(),'version':s['versions'][-1]['version']};dump(case/'HUMAN_DECISION_RECORD.json',r);ledger=load(case/'data_evidence.json');dump(case/'data_evidence.json',record_human_decision(ledger,decision,r['version']));s['status']='CLOSED' if decision.casefold()=='aprobado' else 'OPEN';s['audit'].append({'at':now(),'event':'HUMAN_DECISION','decision':decision});dump(case/'case.json',s);return r
