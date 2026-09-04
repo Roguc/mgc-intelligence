@@ -1,14 +1,24 @@
 from datetime import datetime, timezone
 from hashlib import sha256
-import json, re, shutil
+import json, os, re, shutil
 from pathlib import Path
 from agia_mgc_014.agent import run as run_014
 from agia_mgc_015.agent import run as run_015
 from agia_mgc_016.agent import run as run_016
+from .managerial import SpecialistOutput, build_managerial_record, render_department_report
 EXTERNAL=('email','whatsapp','pago','payment','contrato','contract','firmar','publicar')
 def now(): return datetime.now(timezone.utc).isoformat()
 def dump(p,x): p.write_text(json.dumps(x,ensure_ascii=False,indent=2),encoding='utf-8')
 def load(p): return json.loads(p.read_text(encoding='utf-8'))
+def inference_healthcheck(url='http://127.0.0.1:11435/api/tags',timeout=5):
+ import urllib.request
+ try:
+  with urllib.request.urlopen(url,timeout=timeout) as response:
+   body=json.loads(response.read().decode('utf-8'))
+  models=[item.get('name') for item in body.get('models',[])]
+  return {'ok':'qwen3:14b' in models,'models':models,'url':url}
+ except Exception as exc:
+  return {'ok':False,'models':[],'url':url,'error':str(exc)}
 def route(mission,names):
  t=(mission+' '+' '.join(names)).casefold(); r=[]
  if any(x in t for x in ('proyecto','hito','dependencia','cronograma','pmo','baseline')): r+=['014']
@@ -28,16 +38,22 @@ ROLE_BRIEFS={
  '016':'Actúa exclusivamente como Coordinador de Operaciones de Comercio Exterior y Logística. Reconstruye expedientes, Incoterm, documentos, transporte, seguro, custodia, entrega, incidencias y alertas; no vincules documentos sin evidencia.'}
 def execute(case,mission,paths,correction=None):
  s=load(case/'case.json'); n=len(s['versions'])+1; out=case/f'v{n:03d}'; out=out if not out.exists() else case/f'v{n:03d}-retry-{datetime.now().strftime("%H%M%S")}'; out.mkdir(); agents=route(mission,[p.name for p in paths]); runs={'014':run_014,'015':run_015,'016':run_016}; reports=[]; errors=[]
+ health={'ok':True,'skipped':'rules runtime'} if os.environ.get('MGC_INFERENCE_MODE')=='rules' else inference_healthcheck()
+ if not health['ok']:
+  v={'version':n,'at':now(),'routes':agents,'reports':[],'errors':[],'correction':correction,'status':'INFRASTRUCTURE_BLOCKED','health_check':health,'handoffs':[],'contradictions':[],'human_decisions':[]}
+  dump(out/'version.json',v);s['versions'].append(v);s['status']='INFRASTRUCTURE_BLOCKED';s['audit'].append({'at':now(),'event':'INFRASTRUCTURE_BLOCKED','version':n,'health_check':health});dump(case/'case.json',s);return out,v
  for a in agents:
   try:
    delegated=f'{ROLE_BRIEFS[a]}\n\nMisión departamental:\n{mission}\n\nUse íntegramente los documentos originales adjuntos como fuente de verdad.'
-   p,i=runs[a](delegated,paths,out); reports.append({'agent':'AGIA-MGC-'+a,'report':p.name,'issues':i,'handoff':'Resultado entregado al Case Manager para consolidación.'})
+   p,i=runs[a](delegated,paths,out); reports.append({'agent':'AGIA-MGC-'+a,'report':p.name,'issues':i,'evidence':[p.name,p.name.replace('.md','_LOCAL_INFERENCE_TRACE.json')]})
   except Exception as e: errors.append({'agent':'AGIA-MGC-'+a,'error':str(e)})
- text=['# Informe departamental MGC-05',f'\n## Caso\n{s["case_id"]}',f'\n## Misión\n{mission}',f'\n## Agentes asignados\n'+', '.join('AGIA-MGC-'+a for a in agents),'\n## Consolidación']
- for r in reports:text+=['\n### '+r['agent'],(out/r['report']).read_text(encoding='utf-8')]
- if errors:text+=['\n## Alertas de ejecución','\n'.join('- '+x['agent']+': '+x['error'] for x in errors)]
- text+=['\n## Revisión humana requerida','Las correcciones generan una nueva versión. No se autorizan acciones externas.']
- (out/'MGC-05_DEPARTMENT_REPORT.md').write_text('\n'.join(text),encoding='utf-8'); v={'version':n,'at':now(),'routes':agents,'reports':reports,'errors':errors,'correction':correction,'status':'HUMAN_REVIEW_REQUIRED'}; dump(out/'version.json',v); s['versions'].append(v);s['audit'].append({'at':now(),'event':'HANDOFFS_COMPLETED','version':n});s['audit'].append({'at':now(),'event':'VERSION_CREATED','version':n});dump(case/'case.json',s);return out,v
+ outputs=[SpecialistOutput(item['agent'],(out/item['report']).read_text(encoding='utf-8'),tuple(item['evidence'])) for item in reports]
+ record=build_managerial_record(outputs)
+ for item in reports:item['handoff']='Resultado profesional registrado para coordinación; ver handoffs.json.'
+ dump(out/'handoffs.json',record['handoffs']);dump(out/'contradictions.json',record['contradictions']);dump(out/'human_decisions_required.json',record['human_decisions'])
+ text=render_department_report(s['case_id'],mission,outputs,record)
+ if errors:text+='\n\n## Alertas de ejecución\n'+'\n'.join('- '+x['agent']+': '+x['error'] for x in errors)
+ (out/'MGC-05_DEPARTMENT_REPORT.md').write_text(text,encoding='utf-8'); v={'version':n,'at':now(),'routes':agents,'reports':reports,'errors':errors,'correction':correction,'status':record['departmental_status'],'health_check':health,'handoffs':record['handoffs'],'contradictions':record['contradictions'],'human_decisions':record['human_decisions']}; dump(out/'version.json',v); s['versions'].append(v);s['status']=record['departmental_status'];s['audit'].append({'at':now(),'event':'HANDOFFS_COMPLETED','version':n});s['audit'].append({'at':now(),'event':'VERSION_CREATED','version':n});dump(case/'case.json',s);return out,v
 def run_case(case):
  s=load(case/'case.json');return execute(case,s['mission'],[Path(x['path']) for x in s['documents']])
 def correct_case(case,correction):
