@@ -19,15 +19,10 @@ def is_external_action(mission):
  text=mission.casefold()
  if any(action in text for action in EXTERNAL_ACTIONS): return True
  return 'negociar externamente' in text or ('negociar' in text and not any(intent in text for intent in ANALYSIS_INTENTS))
-def inference_healthcheck(url='http://127.0.0.1:11435/api/tags',timeout=5):
- import urllib.request
- try:
-  with urllib.request.urlopen(url,timeout=timeout) as response:
-   body=json.loads(response.read().decode('utf-8'))
-  models=[item.get('name') for item in body.get('models',[])]
-  return {'ok':'qwen3:14b' in models,'models':models,'url':url}
- except Exception as exc:
-  return {'ok':False,'models':[],'url':url,'error':str(exc)}
+def inference_healthcheck(url=None,timeout=45):
+ from remote_compute import runtime
+ status=runtime().prepare(timeout_seconds=timeout)
+ return {'ok':status.ready,'models':['qwen3:14b'] if status.ready else [],'url':runtime().endpoint_url,'state':status.state,'message':status.executive_message,'error':status.detail}
 def route(mission,names):
  return [agent_id.rsplit('-',1)[-1] for agent_id in FloorManager().plan(mission).agent_ids]
 def create_case(mission,paths,root):

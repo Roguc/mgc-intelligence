@@ -4,10 +4,17 @@ import streamlit as st
 from corporate.platform import build_mgc_platform
 from mgc_05.backend import approve_case,correct_case,create_case,run_case
 from mission_control import case_artifacts,evidence_summary,executive_status,human_gate_action,load_case,selected_agent_summary
+from remote_compute import runtime
 ROOT=Path("outputs")/"mgc_05";platform=build_mgc_platform()
 st.set_page_config(page_title="LNH Mission Control",layout="wide")
 st.markdown("<style>[data-testid='stAppViewContainer']{background:#f6f3eb;color:#242620}[data-testid='stSidebar']{background:#eeece4;border-right:1px solid #ddd8cb}h1,h2,h3{color:#293b29}.stButton>button{background:#657d5c;color:white;border:0;border-radius:7px}.card{background:#fbfaf6;border:1px solid #e1ddd1;border-radius:10px;padding:16px;margin-bottom:10px}.badge{background:#e5ebdf;color:#40533d;border-radius:14px;padding:3px 9px}</style>",unsafe_allow_html=True)
 st.sidebar.markdown("# ✧ LNH");st.sidebar.caption("HOLDING")
+if "remote_compute_status" not in st.session_state:
+ st.session_state["remote_compute_status"]=runtime().prepare(timeout_seconds=20).to_dict()
+remote=st.session_state["remote_compute_status"]
+if remote["ready"]:st.sidebar.success("Motor de inteligencia listo.")
+elif remote["state"]=="PREPARING":st.sidebar.info("Preparando motor de inteligencia.")
+else:st.sidebar.warning("Cómputo remoto no disponible. Inicie Vast.")
 page=st.sidebar.radio("Navegación",["Inicio","Empresas","Pisos","Agentes","Misiones","Evidencia"])
 st.sidebar.markdown("---");st.sidebar.caption("Vista corporativa")
 def cards(units):
