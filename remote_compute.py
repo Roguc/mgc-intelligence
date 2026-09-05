@@ -22,9 +22,34 @@ from urllib.request import Request, urlopen
 MODEL = "qwen3:14b"
 LOCAL_HOST = "127.0.0.1"
 LOCAL_PORT = 11435
-API_ROOT = "https://console.vast.ai/api/v0"
+# Vast's current instance discovery endpoint is version 1.  The endpoint is
+# intentionally centralized so no stale host/port is retained locally.
+API_ROOT = "https://console.vast.ai/api/v1"
+INSTANCE_API_ROOT = "https://console.vast.ai/api/v0"
 DEFAULT_KEY = Path.home() / ".ssh" / "id_ed25519_lnh_vastai"
 DEFAULT_KNOWN_HOSTS = Path.home() / ".lnh" / "mission-control-vast-known-hosts"
+
+
+def _persistent_user_environment(name: str) -> str | None:
+    """Read a Windows user variable created after Mission Control was launched.
+
+    Explorer and an already-running Streamlit process do not inherit variables
+    added with ``setx`` until they restart.  Reading the user environment hive
+    makes the approved persistent credential available on the next health check
+    without requiring a technical restart.
+    """
+    value = os.getenv(name)
+    if value:
+        return value
+    if os.name != "nt":
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            value, _ = winreg.QueryValueEx(key, name)
+            return str(value).strip() or None
+    except (FileNotFoundError, OSError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -60,8 +85,8 @@ class VastDiscovery:
 
     def __init__(self, token: str | None = None, instance_id: str | None = None,
                  api_get: Callable[[str, dict[str, str]], object] | None = None):
-        self.token = token or os.getenv("LNH_VAST_API_KEY")
-        self.instance_id = instance_id or os.getenv("LNH_VAST_INSTANCE_ID")
+        self.token = token or _persistent_user_environment("LNH_VAST_API_KEY")
+        self.instance_id = instance_id or _persistent_user_environment("LNH_VAST_INSTANCE_ID")
         self.api_get = api_get or self._get
 
     @staticmethod
@@ -76,7 +101,7 @@ class VastDiscovery:
         headers = {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
         try:
             if self.instance_id:
-                body = self.api_get(f"{API_ROOT}/instances/{self.instance_id}/", headers)
+                body = self.api_get(f"{INSTANCE_API_ROOT}/instances/{self.instance_id}/", headers)
                 candidate = body.get("instances", body) if isinstance(body, dict) else body
             else:
                 body = self.api_get(f"{API_ROOT}/instances/", headers)
@@ -184,7 +209,7 @@ class RemoteComputeLifecycle:
             return ComputeStatus("PREPARING", "Preparando motor de inteligencia.", detail)
         except RemoteComputeError as error:
             message = str(error)
-            executive = "Cómputo remoto no disponible. Inicie Vast." if "Inicie Vast" in message else "Preparando motor de inteligencia."
+            executive = "Cómputo remoto no disponible. Inicie Vast." if ("Inicie Vast" in message or "credencial" in message) else "Preparando motor de inteligencia."
             return ComputeStatus("UNAVAILABLE", executive, message)
 
 

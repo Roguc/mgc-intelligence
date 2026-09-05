@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from remote_compute import ComputeStatus, RemoteComputeLifecycle, VastDiscovery
+from remote_compute import ComputeStatus, RemoteComputeLifecycle, VastDiscovery, _persistent_user_environment
 
 
 class RemoteComputeTests(unittest.TestCase):
@@ -63,8 +63,13 @@ class RemoteComputeTests(unittest.TestCase):
         self.assertEqual(2, len(attempts))
 
     def test_no_credential_fails_closed_without_transport_attempt(self):
-        lifecycle = RemoteComputeLifecycle(
-            VastDiscovery(None, "7"), runner=lambda *args, **kwargs: self.fail("SSH must not run"),
-            probe=lambda url: (_ for _ in ()).throw(OSError("offline")),
-        )
+        from unittest.mock import patch
+        with patch("remote_compute._persistent_user_environment", return_value=None):
+            discovery = VastDiscovery(None, "7")
+        lifecycle = RemoteComputeLifecycle(discovery, runner=lambda *args, **kwargs: self.fail("SSH must not run"), probe=lambda url: (_ for _ in ()).throw(OSError("offline")))
         self.assertEqual("UNAVAILABLE", lifecycle.prepare(timeout_seconds=1).state)
+
+    def test_process_environment_is_preferred_for_credential(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {"LNH_VAST_API_KEY": "present"}, clear=True):
+            self.assertEqual("present", _persistent_user_environment("LNH_VAST_API_KEY"))

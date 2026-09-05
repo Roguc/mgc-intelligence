@@ -3,7 +3,8 @@
 El acceso directo existente conserva su destino: `scripts/start_mission_control.ps1`.
 
 Antes de reutilizar Streamlit, el lanzador calcula una huella de `app.py`,
-`mission_control.py` y `mgc_05/backend.py`. La huella y el PID se guardan en
+`mission_control.py`, `mgc_05/backend.py`, `remote_compute.py` y
+`ollama_inference.py`. La huella y el PID se guardan en
 `outputs/mission_control_runtime.json`, que es estado local ignorado por Git.
 
 Si una instancia escucha en el puerto 8501 pero su huella no coincide (o el

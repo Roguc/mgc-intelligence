@@ -15,6 +15,8 @@ RUNTIME_FILES = (
     "app.py",
     "mission_control.py",
     "mgc_05/backend.py",
+    "remote_compute.py",
+    "ollama_inference.py",
 )
 
 

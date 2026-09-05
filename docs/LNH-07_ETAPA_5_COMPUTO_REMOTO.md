@@ -5,6 +5,8 @@ Al abrirse o al despachar una misión, consulta la API autenticada de Vast para
 descubrir el endpoint SSH vigente; no conserva IP ni puerto de una instancia
 anterior. El token se lee únicamente desde `LNH_VAST_API_KEY` y el identificador
 opcional desde `LNH_VAST_INSTANCE_ID`; ninguno se guarda en el repositorio.
+Mission Control también lee la variable persistida en Windows para reconocer
+una clave creada mientras la aplicación ya estaba abierta.
 
 La clave SSH dedicada ya existente se usa con un archivo de hosts conocido
 exclusivo de LNH. `StrictHostKeyChecking=accept-new` acepta solamente un host
