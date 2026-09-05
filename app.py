@@ -66,7 +66,9 @@ else:
    st.subheader("Plan y especialistas seleccionados")
    for item in selected_agent_summary(latest.get("routes",[])):st.write("• "+item)
    report=case/f"v{latest['version']:03d}"/"MGC-05_DEPARTMENT_REPORT.md"
+   execution_status=case/f"v{latest['version']:03d}"/"MGC-05_EXECUTION_STATUS.md"
    if report.exists():st.subheader("Consolidado del Gerente de Piso");st.markdown(report.read_text(encoding="utf-8"))
+   elif execution_status.exists():st.subheader("Estado de ejecución");st.markdown(execution_status.read_text(encoding="utf-8"))
    with st.expander("Detalle técnico descargable"):
     for artifact in case_artifacts(case):st.download_button(f"Descargar {artifact.name}",artifact.read_bytes(),artifact.name)
   decision=st.selectbox("Human Gate",["APROBAR","CORREGIR","RECHAZAR"]);rationale=st.text_area("Fundamento / instrucción de corrección")

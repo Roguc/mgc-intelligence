@@ -6,6 +6,18 @@ $python = 'C:\Users\Robinson\AppData\Local\Programs\Python\Python314\python.exe'
 $app = Join-Path $repo 'app.py'
 $statePath = Join-Path $repo 'outputs\mission_control_runtime.json'
 
+function Ensure-MissionControlDependencies {
+    $missingJson = (& $python -c "import json; from runtime_dependencies import missing_dependencies; print(json.dumps(missing_dependencies()))" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "No fue posible comprobar las dependencias de Mission Control." }
+    if ($missingJson -eq '[]') { return }
+    & $python -m pip install --disable-pip-version-check -r (Join-Path $repo 'requirements.txt')
+    if ($LASTEXITCODE -ne 0) { throw "No fue posible instalar las dependencias requeridas: $missingJson." }
+    $verifiedJson = (& $python -c "import json; from runtime_dependencies import missing_dependencies; print(json.dumps(missing_dependencies()))" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $verifiedJson -ne '[]') {
+        throw "Mission Control no puede iniciar: faltan dependencias para leer documentos, incluido PDF."
+    }
+}
+
 function Test-MissionControl {
     try {
         $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2
@@ -53,6 +65,7 @@ function Stop-ValidatedMissionControl([int] $ProcessId) {
     if (Get-MissionControlListener) { throw 'Mission Control no se detuvo de forma controlada.' }
 }
 
+Ensure-MissionControlDependencies
 $identity = Get-RuntimeIdentity
 $listener = Get-MissionControlListener
 $state = Get-RuntimeState

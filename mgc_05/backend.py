@@ -38,28 +38,39 @@ ROLE_BRIEFS={
  '014':'Actúa exclusivamente como Control de Proyectos y PMO. Identifica hitos, dependencias, responsables, riesgos, desviaciones y datos faltantes; no inventes baseline, fechas ni responsables.',
  '015':'Actúa exclusivamente como Analista de Procesos, SOP y Mejora Continua. Reconstruye el proceso documentado, controles, vacíos, contradicciones y mejoras propuestas; no sustituyas análisis legal, financiero ni logístico.',
  '016':'Actúa exclusivamente como Coordinador de Operaciones de Comercio Exterior y Logística. Reconstruye expedientes, Incoterm, documentos, transporte, seguro, custodia, entrega, incidencias y alertas; no vincules documentos sin evidencia.'}
-def execute(case,mission,paths,correction=None):
+def execute(case,mission,paths,correction=None,parent_version=None):
  s=load(case/'case.json'); n=len(s['versions'])+1; out=case/f'v{n:03d}'; out=out if not out.exists() else case/f'v{n:03d}-retry-{datetime.now().strftime("%H%M%S")}'; out.mkdir(); manager=FloorManager(); plan=manager.plan(mission); agents=[agent_id.rsplit('-',1)[-1] for agent_id in plan.agent_ids];dump(out/'plan.json',manager.serialise_plan(plan)); runs={'014':run_014,'015':run_015,'016':run_016}; reports=[]; errors=[]
  health={'ok':True,'skipped':'rules runtime'} if os.environ.get('MGC_INFERENCE_MODE')=='rules' else inference_healthcheck()
  if not health['ok']:
-  v={'version':n,'at':now(),'routes':agents,'reports':[],'errors':[],'correction':correction,'status':'INFRASTRUCTURE_BLOCKED','health_check':health,'handoffs':[],'contradictions':[],'human_decisions':[]}
+  v={'version':n,'parent_version':parent_version,'at':now(),'routes':agents,'reports':[],'errors':[],'correction':correction,'status':'INFRASTRUCTURE_BLOCKED','health_check':health,'handoffs':[],'contradictions':[],'human_decisions':[]}
   dump(out/'version.json',v);s['versions'].append(v);s['status']='INFRASTRUCTURE_BLOCKED';s['audit'].append({'at':now(),'event':'INFRASTRUCTURE_BLOCKED','version':n,'health_check':health});dump(case/'case.json',s);return out,v
  for a in agents:
   try:
    delegated=f'{ROLE_BRIEFS[a]}\n\nMisión departamental:\n{mission}\n\nUse íntegramente los documentos originales adjuntos como fuente de verdad.'
+   if correction: delegated+=f'\n\nInstrucción humana de corrección para esta nueva versión:\n{correction}\nAplique la instrucción sólo dentro de su competencia y señale cualquier elemento que requiera confirmación humana.'
    p,i=runs[a](delegated,paths,out); reports.append({'agent':'AGIA-MGC-'+a,'report':p.name,'issues':i,'evidence':[p.name,p.name.replace('.md','_LOCAL_INFERENCE_TRACE.json')]})
   except Exception as e: errors.append({'agent':'AGIA-MGC-'+a,'error':str(e)})
- outputs=[SpecialistOutput(item['agent'],(out/item['report']).read_text(encoding='utf-8'),tuple(item['evidence'])) for item in reports]
- record,text=manager.consolidate(s['case_id'],mission,outputs)
+ if errors:
+  text='# Estado de ejecución MGC-05\n\nNo existe consolidado profesional: uno o más especialistas no completaron su informe.\n\n## Errores por especialista\n'+'\n'.join('- '+x['agent']+': '+x['error'] for x in errors)
+  (out/'MGC-05_EXECUTION_STATUS.md').write_text(text,encoding='utf-8')
+  record={'handoffs':[],'contradictions':[],'human_decisions':['Restablecer la ejecución de los especialistas fallidos antes de revisión humana.'],'departmental_status':'SPECIALIST_EXECUTION_BLOCKED'}
+ else:
+  outputs=[SpecialistOutput(item['agent'],(out/item['report']).read_text(encoding='utf-8'),tuple(item['evidence'])) for item in reports]
+  record,text=manager.consolidate(s['case_id'],mission,outputs)
+  (out/'MGC-05_DEPARTMENT_REPORT.md').write_text(text,encoding='utf-8')
  for item in reports:item['handoff']='Resultado profesional registrado para coordinación; ver handoffs.json.'
  dump(out/'handoffs.json',record['handoffs']);dump(out/'contradictions.json',record['contradictions']);dump(out/'human_decisions_required.json',record['human_decisions'])
- if errors:text+='\n\n## Alertas de ejecución\n'+'\n'.join('- '+x['agent']+': '+x['error'] for x in errors)
- (out/'MGC-05_DEPARTMENT_REPORT.md').write_text(text,encoding='utf-8'); v={'version':n,'at':now(),'routes':agents,'reports':reports,'errors':errors,'correction':correction,'status':record['departmental_status'],'health_check':health,'handoffs':record['handoffs'],'contradictions':record['contradictions'],'human_decisions':record['human_decisions']}; dump(out/'version.json',v);ledger=load(case/'data_evidence.json');dump(case/'data_evidence.json',record_execution(ledger,n,reports,record['contradictions'],os.environ.get('MGC_INFERENCE_MODE','PENDIENTE')));s['versions'].append(v);s['status']=record['departmental_status'];s['audit'].append({'at':now(),'event':'HANDOFFS_COMPLETED','version':n});s['audit'].append({'at':now(),'event':'VERSION_CREATED','version':n});dump(case/'case.json',s);return out,v
+ v={'version':n,'parent_version':parent_version,'at':now(),'routes':agents,'reports':reports,'errors':errors,'correction':correction,'status':record['departmental_status'],'health_check':health,'handoffs':record['handoffs'],'contradictions':record['contradictions'],'human_decisions':record['human_decisions']}; dump(out/'version.json',v);ledger=load(case/'data_evidence.json');dump(case/'data_evidence.json',record_execution(ledger,n,reports,record['contradictions'],os.environ.get('MGC_INFERENCE_MODE','PENDIENTE')));s['versions'].append(v);s['status']=record['departmental_status'];s['audit'].append({'at':now(),'event':'HANDOFFS_COMPLETED','version':n});s['audit'].append({'at':now(),'event':'VERSION_CREATED','version':n});dump(case/'case.json',s);return out,v
 def run_case(case):
  s=load(case/'case.json');return execute(case,s['mission'],[Path(x['path']) for x in s['documents']])
 def correct_case(case,correction):
  if not correction.strip():raise ValueError('Corrección humana obligatoria.')
- s=load(case/'case.json');s['audit'].append({'at':now(),'event':'HUMAN_CORRECTION','text':correction});dump(case/'case.json',s);return execute(case,s['mission']+'\nCorrección humana:\n'+correction,[Path(x['path']) for x in s['documents']],correction)
+ s=load(case/'case.json')
+ if not s['versions']:raise ValueError('No existe una versión profesional para corregir.')
+ parent=s['versions'][-1]['version'];record={'decision':'CORREGIR','rationale':correction,'at':now(),'source_version':parent}
+ decisions=case/'human_decisions';decisions.mkdir(exist_ok=True);dump(decisions/f'HUMAN_DECISION_RECORD_v{parent:03d}.json',record);dump(case/'HUMAN_DECISION_RECORD.json',record)
+ s['status']='CORRECTION_IN_PROGRESS';s['audit'].append({'at':now(),'event':'HUMAN_CORRECTION_REQUESTED','source_version':parent,'record':str(decisions/f'HUMAN_DECISION_RECORD_v{parent:03d}.json')});dump(case/'case.json',s)
+ return execute(case,s['mission'],[Path(x['path']) for x in s['documents']],correction,parent)
 def approve_case(case,decision,rationale):
  s=load(case/'case.json')
  if not s['versions']:raise ValueError('No existe versión.')

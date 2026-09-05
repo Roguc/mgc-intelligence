@@ -17,6 +17,7 @@ RUNTIME_FILES = (
     "mgc_05/backend.py",
     "remote_compute.py",
     "ollama_inference.py",
+    "runtime_dependencies.py",
 )
 
 
