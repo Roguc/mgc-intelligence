@@ -11,6 +11,12 @@ import tempfile
 from urllib.request import Request, urlopen
 
 MODEL = os.getenv('MGC_OLLAMA_MODEL', 'qwen3:14b')
+MAX_DOCUMENT_CONTEXT_CHARS = 22000
+
+
+def _as_text(value: object) -> str:
+    """Normalise optional extractor/runtime values without fabricating text."""
+    return value if isinstance(value, str) else ''
 
 
 def enabled() -> bool:
@@ -28,16 +34,16 @@ def _ocr_pdf_page(path: Path, page: int) -> str:
         prefix = Path(directory) / 'page'
         rendered = subprocess.run(
             [pdftoppm, '-f', str(page), '-l', str(page), '-r', '200', '-png', str(path), str(prefix)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding='utf-8', errors='replace', check=False,
         )
         images = list(Path(directory).glob('page-*.png'))
         if rendered.returncode or not images:
             return ''
         result = subprocess.run(
             [tesseract, str(images[0]), 'stdout', '-l', 'eng'],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding='utf-8', errors='replace', check=False,
         )
-        return result.stdout.strip() if result.returncode == 0 else ''
+        return _as_text(result.stdout).strip() if result.returncode == 0 else ''
 
 
 def _page_chunks(path: Path, width: int = 2400) -> list[dict[str, str | int]]:
@@ -45,18 +51,23 @@ def _page_chunks(path: Path, width: int = 2400) -> list[dict[str, str | int]]:
     if path.suffix.casefold() == '.pdf':
         from pypdf import PdfReader
         pages = []
-        for index, pdf_page in enumerate(PdfReader(path).pages, start=1):
-            text = (pdf_page.extract_text() or '').strip()
-            method = 'pdf_text'
-            if len(text) < 20:
-                text = _ocr_pdf_page(path, index)
-                method = 'ocr' if text else 'unreadable'
-            pages.append((index, text, method))
+        try:
+            reader = PdfReader(path)
+            for index, pdf_page in enumerate(reader.pages, start=1):
+                text = _as_text(pdf_page.extract_text()).strip()
+                method = 'pdf_text'
+                if len(text) < 20:
+                    text = _as_text(_ocr_pdf_page(path, index)).strip()
+                    method = 'ocr' if text else 'unreadable'
+                pages.append((index, text, method))
+        except Exception:
+            pages = [(1, '', 'unreadable')]
     else:
         from agia_mgc_014.reader import read_document
-        pages = [(1, read_document(path), 'native_text')]
+        pages = [(1, _as_text(read_document(path)), 'native_text')]
     chunks = []
     for page, text, method in pages:
+        text = _as_text(text)
         if not text.strip():
             chunks.append({'document': path.name, 'page': page, 'start': 0, 'end': 0, 'method': method, 'text': '[No se extrajo texto legible; no infieras su contenido.]'})
             continue
@@ -85,10 +96,13 @@ def _documents(paths: list[Path], query: str) -> tuple[str, list[dict[str, str]]
     for name in dict.fromkeys(chunk['document'] for chunk in all_chunks):
         selected.append(max((chunk for chunk in all_chunks if chunk['document'] == name), key=lambda chunk: (chunk['score'], -int(chunk['page']), -int(chunk['start']))))
     selected_ids = {(chunk['document'], chunk['page'], chunk['start']) for chunk in selected}
+    selected_characters = sum(len(str(chunk['text'])) for chunk in selected)
     for chunk in sorted(all_chunks, key=lambda item: item['score'], reverse=True):
-        if len(selected) >= 10 or (chunk['document'], chunk['page'], chunk['start']) in selected_ids:
+        if (len(selected) >= 12 or (chunk['document'], chunk['page'], chunk['start']) in selected_ids
+                or selected_characters + len(str(chunk['text'])) > MAX_DOCUMENT_CONTEXT_CHARS):
             continue
         selected.append(chunk); selected_ids.add((chunk['document'], chunk['page'], chunk['start']))
+        selected_characters += len(str(chunk['text']))
     selected.sort(key=lambda item: (str(item['document']), int(item['page']), int(item['start'])))
     sections = [f"\n--- DOCUMENTO ORIGINAL: {chunk['document']} | página {chunk['page']} | caracteres {chunk['start']}-{chunk['end']} ---\n{chunk['text']}" for chunk in selected]
     return ''.join(sections), trace, selected
@@ -139,7 +153,13 @@ def professional_report(
             result = json.loads(response.read().decode('utf-8'))
     except Exception as error:
         raise RuntimeError(f'Ollama local no pudo generar el informe: {error}') from error
-    report = result.get('response', '').strip()
+    if not isinstance(result, dict):
+        raise RuntimeError('Ollama local devolvió una respuesta con formato no reconocido.')
+    response_text = result.get('response')
+    if not isinstance(response_text, str):
+        detail = result.get('error') or result.get('done_reason') or 'campo response ausente o nulo'
+        raise RuntimeError(f'Ollama local devolvió una respuesta sin texto: {detail}')
+    report = response_text.strip()
     if not report:
         raise RuntimeError('Ollama local no devolvió un informe profesional.')
     report = _ensure_required_sections(report, sections)
@@ -147,6 +167,7 @@ def professional_report(
         'agent': agent_code, 'runtime': 'ollama-localhost', 'model': MODEL,
         'executed_at': started.isoformat(), 'documents': document_trace,
         'selected_fragments': [{key: fragment[key] for key in ('document', 'page', 'start', 'end', 'method')} for fragment in selected_fragments],
+        'context_characters': sum(len(str(fragment['text'])) for fragment in selected_fragments),
         'document_to_conclusion': _document_conclusion_trace(report, document_trace),
         'prompt_eval_count': result.get('prompt_eval_count'), 'eval_count': result.get('eval_count'),
         'total_duration_ns': result.get('total_duration'), 'load_duration_ns': result.get('load_duration'),

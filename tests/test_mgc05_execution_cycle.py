@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mgc_05.backend import correct_case, create_case, run_case
+from mgc_05.backend import approve_case, correct_case, create_case, run_case
 
 
 class MGC05ExecutionCycleTests(unittest.TestCase):
@@ -42,3 +42,15 @@ class MGC05ExecutionCycleTests(unittest.TestCase):
             self.assertEqual("CORREGIR", record["decision"])
             state = json.loads((case / "case.json").read_text(encoding="utf-8"))
             self.assertEqual(2, len(state["versions"]))
+
+    def test_approval_requires_a_completed_professional_consolidation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "operacion.txt"
+            source.write_text("Documento: LOI", encoding="utf-8")
+            case = create_case("Analizar proyecto PMO.", [source], root / "cases")
+            state = json.loads((case / "case.json").read_text(encoding="utf-8"))
+            state["versions"] = [{"version": 1, "status": "SPECIALIST_EXECUTION_BLOCKED"}]
+            (case / "case.json").write_text(json.dumps(state), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "informe profesional consolidado"):
+                approve_case(case, "APROBADO", "No corresponde aprobar una ejecución bloqueada.")
