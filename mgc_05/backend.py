@@ -10,10 +10,15 @@ from .floor_manager import FloorManager
 from corporate.models import Mission
 from corporate.platform import build_mgc_platform
 from corporate.data_evidence import initialize,record_execution,record_human_decision
-EXTERNAL=('email','whatsapp','pago','payment','contrato','contract','firmar','publicar')
+EXTERNAL_ACTIONS=('contactar','enviar','whatsapp','email','pagar','payment','firmar','publicar','comprometer','ejecutar pago')
+ANALYSIS_INTENTS=('analizar','evaluar','recomendar','preparar','borrador','revisar','verificar','identificar','proponer','documentar','ruta de negociación','posibilidad de negociar','posibilidad de acuerdo')
 def now(): return datetime.now(timezone.utc).isoformat()
 def dump(p,x): p.write_text(json.dumps(x,ensure_ascii=False,indent=2),encoding='utf-8')
 def load(p): return json.loads(p.read_text(encoding='utf-8'))
+def is_external_action(mission):
+ text=mission.casefold()
+ if any(action in text for action in EXTERNAL_ACTIONS): return True
+ return 'negociar externamente' in text or ('negociar' in text and not any(intent in text for intent in ANALYSIS_INTENTS))
 def inference_healthcheck(url='http://127.0.0.1:11435/api/tags',timeout=5):
  import urllib.request
  try:
@@ -26,7 +31,7 @@ def inference_healthcheck(url='http://127.0.0.1:11435/api/tags',timeout=5):
 def route(mission,names):
  return [agent_id.rsplit('-',1)[-1] for agent_id in FloorManager().plan(mission).agent_ids]
 def create_case(mission,paths,root):
- if any(x in mission.casefold() for x in EXTERNAL): raise ValueError('Acción externa bloqueada: sólo análisis interno.')
+ if is_external_action(mission): raise ValueError('Acción externa bloqueada: requiere Human Gate.')
  cid=datetime.now().strftime('%Y%m%d%H%M%S')+'-'+re.sub('[^a-z0-9]+','-',mission.casefold()).strip('-')[:24]; case=root/cid; docs=case/'documents'; docs.mkdir(parents=True)
  reg=[]
  for s in paths:

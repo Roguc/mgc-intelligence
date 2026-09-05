@@ -3,7 +3,7 @@ os.environ['MGC_INFERENCE_MODE'] = 'rules'
 import tempfile,unittest,json
 from pathlib import Path
 from unittest.mock import patch
-from mgc_05.backend import approve_case,create_case,correct_case,run_case
+from mgc_05.backend import approve_case,create_case,correct_case,is_external_action,run_case
 class Tests(unittest.TestCase):
  def test_cycle(self):
   with tempfile.TemporaryDirectory() as t:
@@ -21,3 +21,6 @@ class Tests(unittest.TestCase):
  def test_blocks_external(self):
   with tempfile.TemporaryDirectory() as t:
    with self.assertRaises(ValueError):create_case('Enviar email',[],Path(t))
+ def test_allows_internal_analysis_of_external_subjects(self):
+  self.assertFalse(is_external_action('Analizar documentos y preparar borrador de negociación contractual.'))
+  self.assertTrue(is_external_action('Contactar al comprador y enviar el contrato firmado.'))
