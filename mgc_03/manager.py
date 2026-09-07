@@ -35,6 +35,8 @@ class MGC03FloorManager:
             self.platform.organizations.get(FLOOR_ID)
         except KeyError:
             self.platform.organizations.register(OrganizationUnit(FLOOR_ID, FLOOR_NAME, "department", "MGC"))
+        from agia_mgc_007.profile import register
+        register(self.platform.agents)
 
     def receive_mission(self, mission_text: str, case_id: str, documents: Iterable[Path] = ()) -> dict:
         if not mission_text or not mission_text.strip():
@@ -46,7 +48,7 @@ class MGC03FloorManager:
 
     def select_specialists(self, mission_text: str) -> list[str]:
         candidates = [agent for agent in self.platform.agents.for_capabilities([mission_text]) if agent.department_id == FLOOR_ID]
-        return [agent.agent_id for agent in candidates if agent.status == "OPERATIONAL"]
+        return [agent.agent_id for agent in candidates if agent.status in ("OPERATIONAL", "Diseñado - pendiente de aprobación")]
 
     def plan(self, mission_id: str) -> MarketWorkPlan:
         mission = self.platform.missions.get(mission_id)

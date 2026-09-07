@@ -1,17 +1,19 @@
-"""Local-only professional inference for MGC-05 via Ollama on localhost."""
+"""Professional inference facade for MGC-05, backed by the configured gateway."""
 
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
+from uuid import uuid4
 from urllib.request import Request, urlopen
 
 MODEL = os.getenv('MGC_OLLAMA_MODEL', 'qwen3:14b')
-MAX_DOCUMENT_CONTEXT_CHARS = 22000
+MAX_DOCUMENT_CONTEXT_CHARS = 12000
 
 
 def _as_text(value: object) -> str:
@@ -19,9 +21,16 @@ def _as_text(value: object) -> str:
     return value if isinstance(value, str) else ''
 
 
+class ProfessionalQualityError(RuntimeError):
+    """Carries the immutable attempt record when a report is rejected."""
+    def __init__(self, message: str, trace: dict):
+        super().__init__(message)
+        self.trace = trace
+
+
 def enabled() -> bool:
     """Rules mode is retained only for deterministic unit tests."""
-    return os.getenv('MGC_INFERENCE_MODE', 'ollama').casefold() == 'ollama'
+    return os.getenv('MGC_INFERENCE_MODE', 'ollama').casefold() != 'rules'
 
 
 def _ocr_pdf_page(path: Path, page: int) -> str:
@@ -46,7 +55,7 @@ def _ocr_pdf_page(path: Path, page: int) -> str:
         return _as_text(result.stdout).strip() if result.returncode == 0 else ''
 
 
-def _page_chunks(path: Path, width: int = 2400) -> list[dict[str, str | int]]:
+def _page_chunks(path: Path, width: int = 1500) -> list[dict[str, str | int]]:
     """Extract verbatim local text with an OCR fallback for scanned PDF pages."""
     if path.suffix.casefold() == '.pdf':
         from pypdf import PdfReader
@@ -119,15 +128,33 @@ def _document_conclusion_trace(report: str, documents: list[dict[str, str]]) -> 
     ]
 
 
-def _ensure_required_sections(report: str, sections: list[str]) -> str:
-    """Do not silently lose an obligatory section when a model omits it."""
-    missing = [section for section in sections if section.casefold() not in report.casefold()]
-    if not missing:
-        return report
-    appendix = '\n\n## Control de estructura y elementos pendientes\n'
-    for section in missing:
-        appendix += f'\n### {section}\nREQUIERE CONFIRMACIÓN: la inferencia no desarrolló esta sección; no se infiere contenido.\n'
-    return report.rstrip() + appendix
+def required_section_issues(report: str, sections: list[str]) -> list[str]:
+    """Require model-developed sections; never create placeholder content."""
+    issues = []
+    for section in sections:
+        match = re.search(rf'^\s*#{{1,6}}\s+(?:\*\*)?(?:\d+[.)]\s*)?{re.escape(section)}(?:\*\*)?\s*$', report, re.IGNORECASE | re.MULTILINE)
+        if not match:
+            issues.append(f'Sección obligatoria ausente: {section}.')
+            continue
+        following = report[match.end():]
+        next_heading = re.search(r'^\s*#{1,6}\s+', following, re.MULTILINE)
+        content = following[:next_heading.start() if next_heading else len(following)].strip()
+        if len(content) < 40 or 'la inferencia no desarrolló esta sección' in content.casefold():
+            issues.append(f'Sección obligatoria sin desarrollo profesional: {section}.')
+    if len(report) < 2200:
+        issues.append('Informe insuficientemente desarrollado para revisión profesional.')
+    citations = re.findall(r'\[[^\]\n]+,\s*p\.\s*\d+\]', report, re.IGNORECASE)
+    if len(citations) < 3:
+        issues.append('Trazabilidad documental insuficiente: se requieren al menos tres citas documento-página.')
+    categories = ('documentado', 'infer', 'requiere confirmación')
+    if any(category not in report.casefold() for category in categories):
+        issues.append('Falta distinción explícita entre evidencia documentada, inferencia y confirmación requerida.')
+    return issues
+
+
+def _generate(prompt: str, execution_id: str, attempt: int) -> tuple[dict, str]:
+    from remote_compute import runtime
+    return runtime().generate(prompt, execution_id, attempt)
 
 
 def professional_report(
@@ -140,31 +167,18 @@ def professional_report(
     """Produce one internal report with a local Ollama runtime only."""
     documents, document_trace, selected_fragments = _documents(paths, f'{mandate} {mission}')
     sections = required_sections or []
-    prompt = f'''# Rol profesional\n{agent_code}\n{mandate}\n\n# Misión\n{mission}\n\n# Reglas obligatorias\n- Usa exclusivamente los documentos originales reproducidos abajo como fuente de verdad.\n- Distingue DOCUMENTADO, DECLARADO, INFERIDO, PROPUESTO y REQUIERE CONFIRMACIÓN.\n- No inventes hechos, fechas, responsables, autenticidad, vínculos documentales ni datos ausentes.\n- No autorices ni ejecutes pagos, contratos, correos, contactos externos, embarques, producción o acciones irreversibles.\n- Cuando un documento sea histórico, contradictorio o no pueda asociarse a una operación, dilo expresamente.\n- Separa explícitamente operación actual, antecedentes históricos y documentos no vinculados. No fusiones expedientes sin evidencia documental.\n- Toda conclusión material debe citar el documento y página entre corchetes: [nombre de documento, p. N].\n- No atribuyas una fecha de ejecución distinta de {datetime.now(timezone.utc).date().isoformat()}.\n- Escribe un informe profesional completo en español, con trazabilidad por nombre de documento, riesgos, acciones internas y escalamiento humano.\n\n# Secciones obligatorias\n{chr(10).join(f'## {section}' for section in sections)}\n\n# Documentos originales\n{documents}'''
+    execution_id = uuid4().hex
+    prompt = f'''# Rol profesional\n{agent_code}\n{mandate}\n\n# Misión\n{mission}\n\n# Reglas obligatorias\n- Usa exclusivamente los documentos originales reproducidos abajo como fuente de verdad.\n- Distingue DOCUMENTADO, DECLARADO, INFERIDO, PROPUESTO y REQUIERE CONFIRMACIÓN.\n- No inventes hechos, fechas, responsables, autenticidad, vínculos documentales ni datos ausentes.\n- No autorices ni ejecutes pagos, contratos, correos, contactos externos, embarques, producción o acciones irreversibles.\n- Cuando un documento sea histórico, contradictorio o no pueda asociarse a una operación, dilo expresamente.\n- Separa explícitamente operación actual, antecedentes históricos y documentos no vinculados. No fusiones expedientes sin evidencia documental.\n- Toda conclusión material debe citar el documento y página entre corchetes: [nombre de documento, p. N].\n- No atribuyas una fecha de ejecución distinta de {datetime.now(timezone.utc).date().isoformat()}.\n- Escribe un informe profesional completo en español, con trazabilidad por nombre de documento, riesgos, acciones internas y escalamiento humano.\n- Usa exactamente los encabezados Markdown exigidos y desarrolla cada sección; una brecha debe explicar qué falta y por qué.\n\n# Secciones obligatorias\n{chr(10).join(f'## {section}' for section in sections)}\n\n# Documentos originales\n{documents}'''
     from remote_compute import runtime
     status = runtime().prepare()
     if not status.ready:
         raise RuntimeError(status.executive_message)
-    payload = {'model': MODEL, 'prompt': prompt, 'stream': False, 'think': False, 'options': {'temperature': 0.1, 'num_ctx': 8192}}
-    request = Request(f'{runtime().endpoint_url}/api/generate', data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'}, method='POST')
     started = datetime.now(timezone.utc)
-    try:
-        with urlopen(request, timeout=600) as response:
-            result = json.loads(response.read().decode('utf-8'))
-    except Exception as error:
-        raise RuntimeError(f'Ollama local no pudo generar el informe: {error}') from error
-    if not isinstance(result, dict):
-        raise RuntimeError('Ollama local devolvió una respuesta con formato no reconocido.')
-    response_text = result.get('response')
-    if not isinstance(response_text, str):
-        detail = result.get('error') or result.get('done_reason') or 'campo response ausente o nulo'
-        raise RuntimeError(f'Ollama local devolvió una respuesta sin texto: {detail}')
-    report = response_text.strip()
-    if not report:
-        raise RuntimeError('Ollama local no devolvió un informe profesional.')
-    report = _ensure_required_sections(report, sections)
+    attempts = []
+    result, report = _generate(prompt, execution_id, 1)
+    attempts.append({'attempt':1,'response_sha256':sha256(report.encode('utf-8')).hexdigest(),'technical_valid':True,'prompt_eval_count':result.get('prompt_eval_count'),'eval_count':result.get('eval_count'),'total_duration_ns':result.get('total_duration')})
     trace = {
-        'agent': agent_code, 'runtime': 'ollama-localhost', 'model': MODEL,
+        'execution_id': execution_id, 'agent': agent_code, 'runtime': getattr(runtime(), 'provider_name', 'unknown'), 'model': result.get('model', getattr(runtime(), 'model', MODEL)),
         'executed_at': started.isoformat(), 'documents': document_trace,
         'selected_fragments': [{key: fragment[key] for key in ('document', 'page', 'start', 'end', 'method')} for fragment in selected_fragments],
         'context_characters': sum(len(str(fragment['text'])) for fragment in selected_fragments),
@@ -172,11 +186,17 @@ def professional_report(
         'prompt_eval_count': result.get('prompt_eval_count'), 'eval_count': result.get('eval_count'),
         'total_duration_ns': result.get('total_duration'), 'load_duration_ns': result.get('load_duration'),
         'cost_usd': 0.0,
+        'attempts': attempts,
     }
     return report, trace
 
 
-def write_trace(output_dir: Path, agent_code: str, trace: dict) -> Path:
-    target = output_dir / f'{agent_code}_LOCAL_INFERENCE_TRACE.json'
+def write_trace(output_dir: Path, agent_code: str, trace: dict, report_path: Path | None = None) -> Path:
+    trace['case_id'] = output_dir.parent.name
+    trace['version'] = output_dir.name
+    if report_path is not None:
+        trace['report'] = report_path.name
+        trace['report_sha256'] = sha256(report_path.read_bytes()).hexdigest()
+    target = output_dir / f"{agent_code}_{trace['execution_id']}_LOCAL_INFERENCE_TRACE.json"
     target.write_text(json.dumps(trace, ensure_ascii=False, indent=2), encoding='utf-8')
     return target

@@ -3,6 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+import os
 
 from mission_control_runtime import RUNTIME_FILES, runtime_identity
 
@@ -33,3 +35,10 @@ class MissionControlRuntimeTests(unittest.TestCase):
             updated = runtime_identity(root)["fingerprint"]
 
         self.assertNotEqual(original, updated)
+
+    def test_identity_changes_when_provider_changes(self) -> None:
+        with patch.dict(os.environ, {"MGC_INFERENCE_PROVIDER": "ollama"}, clear=False):
+            ollama = runtime_identity()["fingerprint"]
+        with patch.dict(os.environ, {"MGC_INFERENCE_PROVIDER": "alibaba", "MGC_ALIBABA_BASE_URL": "https://workspace.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"}, clear=False):
+            alibaba = runtime_identity()["fingerprint"]
+        self.assertNotEqual(ollama, alibaba)
