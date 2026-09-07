@@ -167,6 +167,21 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
         badge = f"<br><span class='lnh-badge {state_class}'>{status}</span>" if status else ""
         st.markdown(f"<div class='lnh-card'><div class='lnh-card-title'>{title}</div><div class='lnh-card-detail'>{detail}</div>{badge}</div>", unsafe_allow_html=True)
 
+    def navigate(target: str, **selection: str) -> None:
+        st.session_state.update(selection)
+        st.session_state["corporate_page"] = target
+        st.rerun()
+
+    def nav_button(label: str, target: str) -> None:
+        active = st.session_state.get("corporate_page") == target
+        if st.sidebar.button(label, key=f"nav-{target}", use_container_width=True, type="primary" if active else "secondary"):
+            navigate(target)
+
+    def title(title: str, subtitle: str, eyebrow: str = "MISSION CONTROL") -> None:
+        st.markdown(f"<div class='lnh-page-eyebrow'>{eyebrow}</div>", unsafe_allow_html=True)
+        st.title(title)
+        st.caption(subtitle)
+
     def root_for(floor_id: str) -> Path:
         return mgc05_root if floor_id == "MGC-05" else mgc03_root
 
@@ -175,48 +190,101 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
     if "selected_company" not in st.session_state:
         st.session_state["selected_company"] = "MGC"
 
-    pages = ("Mi Oficina", "Holding", "Empresas", "Pisos", "Gerentes y agentes", "Misiones", "Evidencia y conocimiento", "Reportes")
-    page = st.sidebar.radio("Navegación", pages, index=pages.index(st.session_state.get("corporate_page", "Mi Oficina")))
-    st.session_state["corporate_page"] = page
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Mi Oficina → Holding → Empresas → Pisos → Gerentes → Agentes")
+    if "corporate_page" not in st.session_state:
+        st.session_state["corporate_page"] = "Mi Oficina"
+    page = st.session_state["corporate_page"]
+    st.sidebar.markdown("<div class='lnh-sidebar-brand'><b>LNH</b><span>Latitud Norte Holding</span></div>", unsafe_allow_html=True)
+    remote = st.session_state.get("remote_compute_status", {})
+    if remote.get("ready"):
+        st.sidebar.success("Motor de inteligencia listo.")
+    elif remote.get("state") == "PREPARING":
+        st.sidebar.info("Preparando motor de inteligencia.")
+    else:
+        st.sidebar.warning("Cómputo remoto no disponible.")
+    st.sidebar.markdown("<div class='lnh-nav-group'>MI OFICINA</div>", unsafe_allow_html=True)
+    nav_button("Inicio CEO", "Mi Oficina")
+    nav_button("Correo", "Correo")
+    nav_button("Calendario y agenda", "Agenda")
+    nav_button("Actividades", "Actividades")
+    nav_button("Decisiones", "Decisiones")
+    nav_button("Informes", "Informes CEO")
+    st.sidebar.markdown("<div class='lnh-nav-group'>HOLDING</div>", unsafe_allow_html=True)
+    nav_button("Holding corporativo", "Holding")
+    st.sidebar.markdown("<div class='lnh-nav-group'>EMPRESAS</div>", unsafe_allow_html=True)
+    nav_button("Empresas", "Empresas")
+    st.sidebar.markdown("<div class='lnh-nav-group'>OPERACIÓN</div>", unsafe_allow_html=True)
+    nav_button("Pisos", "Pisos")
+    nav_button("Gerentes y agentes", "Gerentes y agentes")
+    nav_button("Misiones", "Misiones")
+    nav_button("Evidencia y conocimiento", "Evidencia y conocimiento")
+    nav_button("Reportes", "Reportes")
+    st.sidebar.markdown("<div class='lnh-sidebar-footer'>LNH · datos y decisiones bajo gobierno corporativo</div>", unsafe_allow_html=True)
     floor_id = st.session_state["selected_floor"]
-    floor_name = FLOORS[floor_id]["name"]
-    st.markdown(f"<div class='lnh-topbar'><span><b>Latitud Norte Holding</b> · Mission Control</span><span>Presidencia · Vista corporativa</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='lnh-breadcrumb'>Mi Oficina / {page}{' / ' + floor_id if page in {'Pisos', 'Gerentes y agentes', 'Misiones'} else ''}</div>", unsafe_allow_html=True)
+    company_id = st.session_state["selected_company"]
+    crumbs = ["LNH", page]
+    if page == "Empresa":
+        crumbs.append(company_id)
+    elif page == "Piso":
+        crumbs.extend((company_id, floor_id))
+    elif page == "Misiones":
+        crumbs.extend((company_id, floor_id, "Nueva misión"))
+    st.markdown("<div class='lnh-shell-header'><span><b>MISSION CONTROL</b> · Centro de mando corporativo</span><span>Presidencia · entorno interno</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='lnh-breadcrumb'>{' <span>›</span> '.join(crumbs)}</div>", unsafe_allow_html=True)
 
     if page == "Mi Oficina":
         summary = corporate_snapshot(mgc05_root, mgc03_root)
-        st.title("Mi Oficina")
-        st.caption("CEO / Presidencia · Centro de mando de Latitud Norte Holding")
+        title("Mi Oficina", "CEO / Presidencia · visión ejecutiva de lo que está materializado en LNH", "PRESIDENCIA")
         a, b, c, d = st.columns(4)
         for column, title, value, note in ((a, "Decisiones pendientes", summary["pending_decisions"], "Human Gate MGC-05"), (b, "Informes", summary["reports"], "Materializados por pisos"), (c, "Misiones y actividad", summary["missions"], "Expedientes registrados"), (d, "Alertas", "No disponible", "No existe motor corporativo de alertas")):
             with column:
-                st.markdown(f"<div class='lnh-metric'><div class='lnh-kicker'>{title}</div><div style='font-size:1.8rem;font-weight:750'>{value}</div><div style='color:#687783;font-size:.8rem'>{note}</div></div>", unsafe_allow_html=True)
-        st.subheader("Accesos ejecutivos")
-        cols = st.columns(5)
-        links = (("Correo", "No conectado", None), ("Calendario", "No conectado", None), ("Actividades", "Expedientes locales", "Misiones"), ("Decisiones", "Human Gate MGC-05", "Misiones"), ("Informes", "Reportes materializados", "Reportes"))
-        for column, (title, state, destination) in zip(cols, links):
-            with column:
-                card(title, state, state)
-                if destination and st.button(f"Abrir {title}", key=f"office-{title}"):
-                    st.session_state["corporate_page"] = destination
-                    st.rerun()
-        st.subheader("Actividad disponible")
+                value_class = "lnh-metric-value" if isinstance(value, int) else "lnh-metric-value lnh-metric-text"
+                st.markdown(f"<div class='lnh-metric'><div class='lnh-kicker'>{title}</div><div class='{value_class}'>{value}</div><div class='lnh-metric-note'>{note}</div></div>", unsafe_allow_html=True)
+        st.subheader("Oficina de Presidencia")
+        cols = st.columns(3)
+        links = (("Agenda", "No conectado", "Agenda"), ("Correo", "No conectado", "Correo"), ("Actividades", "Expedientes locales", "Actividades"), ("Decisiones", "Human Gate MGC-05", "Decisiones"), ("Informes", "Reportes materializados", "Informes CEO"), ("Alertas", "No disponible", None))
+        for index, (link_title, state, destination) in enumerate(links):
+            with cols[index % 3]:
+                card(link_title, state, state)
+                if destination and st.button("Abrir", key=f"office-{link_title}", use_container_width=True):
+                    navigate(destination)
+        st.subheader("Actividad relevante")
         if summary["activity_records"]:
-            st.markdown(f"<div class='lnh-empty'>Se registran {summary['activity_records']} expediente(s) local(es). El detalle por actividad se consulta desde cada expediente; no se inventan eventos adicionales.</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='lnh-empty'>Hay {summary['activity_records']} expediente(s) local(es) registrados. La plataforma no cuenta todavía con una agenda corporativa ni stream de actividad; el detalle se consulta dentro de cada expediente.</div>", unsafe_allow_html=True)
         else:
             st.markdown("<div class='lnh-empty'>No hay actividad materializada para mostrar.</div>", unsafe_allow_html=True)
         return
 
+    if page in {"Correo", "Agenda", "Actividades", "Decisiones", "Informes CEO"}:
+        office = {
+            "Correo": ("Correo", "No conectado", "No existe un conector de correo habilitado para LNH."),
+            "Agenda": ("Calendario y agenda", "No conectado", "No existe un conector de calendario habilitado para LNH."),
+            "Actividades": ("Actividades", "Expedientes locales", "La actividad disponible proviene de expedientes materializados."),
+            "Decisiones": ("Decisiones", "Human Gate", "Las decisiones disponibles se originan en expedientes MGC-05 materializados."),
+            "Informes CEO": ("Informes", "Reportes materializados", "Los informes disponibles se consultan sin crear resúmenes ni métricas no producidas."),
+        }[page]
+        title(office[0], office[2], "MI OFICINA")
+        if page in {"Correo", "Agenda"}:
+            st.markdown(f"<div class='lnh-empty'><b>{office[1]}</b><br>{office[2]}</div>", unsafe_allow_html=True)
+        elif page == "Actividades":
+            st.markdown(f"<div class='lnh-empty'>{summary['activity_records'] if 'summary' in locals() else corporate_snapshot(mgc05_root, mgc03_root)['activity_records']} expediente(s) local(es) registrados. No hay un stream de actividad corporativo materializado.</div>", unsafe_allow_html=True)
+        elif page == "Decisiones":
+            st.markdown(f"<div class='lnh-empty'>Decisiones pendientes registradas: {corporate_snapshot(mgc05_root, mgc03_root)['pending_decisions']}. El detalle se consulta en el Human Gate del expediente correspondiente.</div>", unsafe_allow_html=True)
+        else:
+            reports = [item for case in case_dirs(mgc05_root) for item in case.rglob("MGC-05_DEPARTMENT_REPORT.md")]
+            if reports:
+                for report in sorted(reports, reverse=True):
+                    st.download_button(f"Descargar {report.parent.parent.name} · {report.name}", report.read_bytes(), report.name)
+            else:
+                st.markdown("<div class='lnh-empty'>Sin informes corporativos materializados.</div>", unsafe_allow_html=True)
+        return
+
     if page == "Holding":
-        st.title("Latitud Norte Holding")
-        st.caption("Directorio corporativo · Áreas estructuralmente disponibles. No se atribuyen operaciones, métricas ni dotación no materializadas.")
+        title("Latitud Norte Holding", "Áreas corporativas estructuralmente disponibles. Sin operaciones, indicadores ni equipos no materializados.", "HOLDING")
         columns = st.columns(3)
         for index, area in enumerate(HOLDING_AREAS):
             with columns[index % 3]:
                 card(area, "Sin datos operativos registrados.", "No habilitado")
-                if st.button("Ver área", key=f"holding-{area}"):
+                if st.button("Ver área", key=f"holding-{area}", use_container_width=True):
                     st.session_state["selected_holding_area"] = area
         selected_area = st.session_state.get("selected_holding_area")
         if selected_area:
@@ -225,62 +293,82 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
         return
 
     if page == "Empresas":
-        st.title("Empresas")
+        title("Empresas del Holding", "Seleccione una empresa para consultar su estructura y pisos disponibles.", "EMPRESAS")
         company_columns = st.columns(2)
         for column, (company_id, company) in zip(company_columns, COMPANIES.items()):
             with column:
                 available = floors(company_id)
                 card(company["name"], f"Pisos materializados: {len(available)}. No se muestran métricas ni actividad no registradas.", company["status"])
-                for floor in available:
-                    if st.button(f"Abrir {floor['floor_id']}", key=f"company-{floor['floor_id']}"):
-                        st.session_state["selected_company"] = company_id
-                        st.session_state["selected_floor"] = floor["floor_id"]
-                        st.session_state["corporate_page"] = "Pisos"
-                        st.rerun()
+                if st.button("Abrir empresa", key=f"company-{company_id}", use_container_width=True):
+                    navigate("Empresa", selected_company=company_id)
                 if not available:
                     st.caption("No hay pisos habilitados en la plataforma actual.")
-        st.subheader("Vista ejecutiva de empresa")
-        selected_company = st.selectbox("Empresa", list(COMPANIES), format_func=lambda item: COMPANIES[item]["name"], key="company-view")
-        company_floors = floors(selected_company)
-        st.write(f"{COMPANIES[selected_company]['name']} · Estado: {COMPANIES[selected_company]['status']}")
-        if company_floors:
-            for floor in company_floors:
-                st.markdown(f"<div class='lnh-card'><div class='lnh-card-title'>{floor['floor_id']} · {floor['name']}</div><div class='lnh-card-detail'>Gerente: {floor['manager']}<br>Capacidad real: {floor['availability']}</div><span class='lnh-badge {'ok' if floor['status'] == 'Operativo' else 'build'}'>{floor['status']}</span></div>", unsafe_allow_html=True)
+        return
+
+    if page == "Empresa":
+        company = COMPANIES[company_id]
+        title(company["name"], f"Estado corporativo: {company['status']}. Vista ejecutiva antes de acceder a los pisos.", "EMPRESA")
+        available = floors(company_id)
+        a, b, c = st.columns(3)
+        a.metric("Pisos materializados", len(available))
+        b.metric("Estado", company["status"])
+        c.metric("Actividad", "No disponible")
+        st.subheader("Pisos de la empresa")
+        if available:
+            for floor in available:
+                left, right = st.columns((5, 1))
+                with left:
+                    card(f"{floor['floor_id']} · {floor['name']}", f"Gerente: {floor['manager']}<br>Capacidad real: {floor['availability']}", str(floor["status"]))
+                with right:
+                    st.write("")
+                    if st.button("Abrir piso", key=f"enterprise-floor-{floor['floor_id']}", use_container_width=True):
+                        navigate("Piso", selected_floor=str(floor["floor_id"]))
+        else:
+            st.markdown("<div class='lnh-empty'>No hay pisos habilitados para esta empresa.</div>", unsafe_allow_html=True)
+        return
+
+    if page == "Pisos":
+        title("Pisos operativos", "Seleccione un piso para trabajar con su gerente y su equipo.", "OPERACIÓN")
+        company_id = st.selectbox("Empresa", list(COMPANIES), format_func=lambda item: COMPANIES[item]["name"], key="floor-company")
+        st.session_state["selected_company"] = company_id
+        available = floors(company_id)
+        if available:
+            for floor in available:
+                left, right = st.columns((5, 1))
+                with left:
+                    card(f"{floor['floor_id']} · {floor['name']}", f"Gerente: {floor['manager']}<br>{floor['availability']}", str(floor["status"]))
+                with right:
+                    st.write("")
+                    if st.button("Entrar", key=f"floor-{floor['floor_id']}", use_container_width=True):
+                        navigate("Piso", selected_floor=str(floor["floor_id"]))
         else:
             st.markdown("<div class='lnh-empty'>No hay pisos corporativos habilitados para esta empresa.</div>", unsafe_allow_html=True)
         return
 
-    if page in {"Pisos", "Gerentes y agentes"}:
-        if page == "Pisos":
-            st.title("Pisos")
-            st.caption("Empresa → Piso → Gerente → Equipo")
-            for floor in floors(st.session_state["selected_company"]):
-                card(str(floor["name"]), str(floor["availability"]), str(floor["status"]))
-                if st.button("Seleccionar piso", key=f"floor-{floor['floor_id']}"):
-                    st.session_state["selected_floor"] = floor["floor_id"]
-                    st.rerun()
-            selected = next((item for item in floors() if item["floor_id"] == st.session_state["selected_floor"]), None)
-            if selected:
-                st.markdown("<div class='lnh-section'></div>", unsafe_allow_html=True)
-                a, b = st.columns((3, 1))
-                with a:
-                    st.subheader(f"{selected['floor_id']} · {selected['name']}")
-                    st.caption(f"Gerente del Piso: {selected['manager']} · Estado: {selected['status']}")
-                with b:
-                    if st.button("+ Nueva misión", key=f"new-mission-{selected['floor_id']}", type="primary"):
-                        st.session_state["corporate_page"] = "Misiones"
-                        st.rerun()
-                card(str(selected["manager"]), str(selected["availability"]), str(selected["status"]))
-                st.subheader("Equipo de agentes")
-                for agent_id, name, status in selected["agents"]:
-                    card(agent_id, name, status)
-        else:
-            st.title("Gerentes y agentes")
-            for floor in floors():
-                st.subheader(f"{floor['floor_id']} · {floor['name']}")
-                card(str(floor["manager"]), str(floor["availability"]), str(floor["status"]))
-                for agent_id, name, status in floor["agents"]:
-                    card(agent_id, str(name), str(status))
+    if page == "Piso":
+        selected = next(item for item in floors() if item["floor_id"] == floor_id)
+        title(f"{selected['floor_id']} · {selected['name']}", f"Gerente del piso: {selected['manager']} · Estado: {selected['status']}", "PISO")
+        left, right = st.columns((4, 1))
+        with left:
+            card(str(selected["manager"]), str(selected["availability"]), str(selected["status"]))
+        with right:
+            st.write("")
+            if st.button("+ Nueva misión", key=f"new-mission-{selected['floor_id']}", type="primary", use_container_width=True):
+                navigate("Misiones", selected_floor=str(selected["floor_id"]))
+        st.subheader("Equipo del piso")
+        agent_columns = st.columns(min(3, len(selected["agents"])))
+        for column, (agent_id, name, status) in zip(agent_columns, selected["agents"]):
+            with column:
+                card(agent_id, name, status)
+        return
+
+    if page == "Gerentes y agentes":
+        title("Gerentes y agentes", "Directorio de los equipos registrados por piso. La disponibilidad refleja el estado materializado.", "OPERACIÓN")
+        for floor in floors():
+            st.subheader(f"{floor['floor_id']} · {floor['name']}")
+            card(str(floor["manager"]), str(floor["availability"]), str(floor["status"]))
+            for agent_id, name, status in floor["agents"]:
+                card(agent_id, str(name), str(status))
         return
 
     if page == "Misiones":
@@ -288,8 +376,7 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
         selected_floor = st.selectbox("Piso destinatario", floor_ids, index=floor_ids.index(st.session_state["selected_floor"]))
         st.session_state["selected_floor"] = selected_floor
         floor = next(item for item in floors() if item["floor_id"] == selected_floor)
-        st.title("Nueva misión")
-        st.caption(f"Destino: {selected_floor} · {floor['name']} · Gerente: {floor['manager']}")
+        title("Nueva misión", f"Destino: {selected_floor} · {floor['name']} · Gerente: {floor['manager']}", "OPERACIÓN")
         st.markdown(f"<div class='lnh-card'><div class='lnh-card-title'>Enviar misión al Gerente</div><div class='lnh-card-detail'>{floor['availability']} La misión se registra en un expediente corporativo; los documentos son evidencia adicional opcional.</div></div>", unsafe_allow_html=True)
         mission = st.text_area("Instrucción / misión", placeholder="Describa el objetivo, alcance y resultado requerido en lenguaje natural.", height=170)
         uploads = st.file_uploader("Documentos de evidencia (opcionales)", type=["txt", "md", "docx", "pdf", "csv", "xlsx"], accept_multiple_files=True, help="Los documentos se conservan con el expediente si son cargados correctamente.")
@@ -340,7 +427,12 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
         a.metric("Estado", info["status"])
         b.metric("Documentos", len(info["documents"]))
         c.metric("Versión", info["latest"]["version"] if info["latest"] else "No disponible")
-        tab_plan, tab_team, tab_evidence, tab_results, tab_review, tab_gate, tab_history = st.tabs(("Plan", "Especialistas", "Evidencia", "Resultados", "Revisión gerencial", "Human Gate", "Historial"))
+        tab_summary, tab_plan, tab_team, tab_activity, tab_evidence, tab_results, tab_review, tab_gate, tab_history = st.tabs(("Resumen", "Plan", "Equipo", "Actividad", "Fuentes-Evidencia", "Resultados", "Revisión Gerencial", "Human Gate", "Historial"))
+        with tab_summary:
+            st.subheader("Estado ejecutivo del expediente")
+            st.success("Completado: " + status["completed"])
+            st.warning("Bloqueado / pendiente: " + status["blocked"])
+            st.info("Próxima acción: " + status["next"])
         with tab_plan:
             st.subheader("Objetivo interpretado y entregable")
             st.write(info["raw"].get("mission", "No disponible"))
@@ -355,7 +447,7 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
                 st.write("Pendiente de implementación / No disponible")
             st.markdown("<div class='lnh-empty'>Progreso por etapa y timeline: Pendiente de implementación / No disponible.</div>", unsafe_allow_html=True)
         with tab_team:
-            st.subheader("Especialistas seleccionados")
+            st.subheader("Equipo y especialistas seleccionados")
             routes = info["raw"].get("plan", {}).get("selected_agents", []) if selected_floor == "MGC-03" else (info["latest"].get("routes", []) if info["latest"] else [])
             details = agent_reason(selected_floor, routes)
             if details:
@@ -363,11 +455,19 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
                     card(item.split(" — ")[0], item.split(" — ", 1)[1] if " — " in item else "Motivo no disponible", "Seleccionado")
             else:
                 st.markdown("<div class='lnh-empty'>Pendiente de implementación / No disponible.</div>", unsafe_allow_html=True)
+        with tab_activity:
+            events = info["raw"].get("audit", [])
+            if events:
+                st.dataframe(events, use_container_width=True, hide_index=True)
+            else:
+                st.markdown("<div class='lnh-empty'>Sin actividad de auditoría materializada para presentar en esta vista.</div>", unsafe_allow_html=True)
         with tab_evidence:
-            st.subheader("Herramientas, fuentes y evidencia")
-            st.write("Herramientas utilizadas: Pendiente de implementación / No disponible")
-            st.write("Fuentes y evidencia: disponibles en Evidencia y conocimiento cuando el expediente las materializa.")
-            st.write(f"Documentos registrados: {len(info['documents'])}")
+            st.subheader("Fuentes y evidencia registrada")
+            if info["documents"]:
+                st.dataframe([{"Documento": item.get("original_name", item.get("name", "No disponible")), "Estado": "Registrado"} for item in info["documents"]], use_container_width=True, hide_index=True)
+            else:
+                st.markdown("<div class='lnh-empty'>Sin documentos adjuntos. La evidencia documental era opcional para esta misión.</div>", unsafe_allow_html=True)
+            st.caption("Herramientas y trazabilidad de extracción: Pendiente de implementación / No disponible cuando el backend no las materializa.")
         with tab_results:
             if selected_floor == "MGC-05" and info["latest"]:
                 version = case / f"v{info['latest']['version']:03d}"
@@ -389,7 +489,7 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
         with tab_gate:
             st.subheader("Human Gate")
             if selected_floor == "MGC-05":
-                st.caption("CORREGIR registra la observación humana y la dirige al Gerente MGC-05. El ciclo inteligente posterior corresponde a una etapa posterior.")
+                st.caption("APROBAR, CORREGIR y RECHAZAR se registran en el Human Gate. CORREGIR dirige la observación al Gerente MGC-05.")
                 decision = st.radio("Decisión ejecutiva", ["APROBAR", "CORREGIR", "RECHAZAR"], horizontal=True)
                 rationale = st.text_area("Fundamento / observación para el Gerente")
                 if st.button("Registrar decisión humana", type="primary"):
@@ -412,7 +512,7 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
         return
 
     if page == "Evidencia y conocimiento":
-        st.title("Evidencia y conocimiento")
+        title("Evidencia y conocimiento", "Navegación de Fuente → Evidencia → Hallazgo → Output, exclusivamente desde registros materializados.", "GOBIERNO DE DATOS")
         floor_ids = [item["floor_id"] for item in floors()]
         selected_floor = st.selectbox("Piso", floor_ids, index=floor_ids.index(st.session_state["selected_floor"]))
         cases = case_dirs(root_for(selected_floor))
@@ -435,7 +535,7 @@ def render(st, *, mgc05_root: Path, mgc03_root: Path, create_mgc05_case, run_mgc
             st.info("Seleccione un expediente para consultar evidencia materializada.")
         return
 
-    st.title("Reportes")
+    title("Reportes", "Informes materializados por los pisos. No se muestran reportes no producidos.", "GOBIERNO")
     reports = [item for case in case_dirs(mgc05_root) for item in case.rglob("MGC-05_DEPARTMENT_REPORT.md")]
     if reports:
         for report in sorted(reports, reverse=True):

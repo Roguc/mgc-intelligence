@@ -7,30 +7,22 @@ from mission_control import case_artifacts,evidence_summary,executive_status,hum
 from corporate_mission_control import render as render_corporate_mission_control
 from remote_compute import runtime
 ROOT=Path("outputs")/"mgc_05";platform=build_mgc_platform()
-st.set_page_config(page_title="LNH Mission Control",layout="wide")
+st.set_page_config(page_title="LNH Mission Control", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""<style>
-:root{--lnh-navy:#102432;--lnh-blue:#1a5a89;--lnh-sage:#5f8069;--lnh-bg:#f4f6f8;--lnh-panel:#ffffff;--lnh-line:#dde4e8;--lnh-text:#1c2a35;--lnh-muted:#687783}
-[data-testid='stAppViewContainer']{background:var(--lnh-bg);color:var(--lnh-text)}
-[data-testid='stSidebar']{background:var(--lnh-navy);border-right:1px solid #253c4c}
-[data-testid='stSidebar'] *{color:#eef4f8!important}
-[data-testid='stSidebar'] .stRadio label{padding:8px 10px;border-radius:6px;margin:2px 0}
-[data-testid='stSidebar'] .stRadio label:has(input:checked){background:#1c5079}
-[data-testid='stSidebar'] [data-testid='stCaptionContainer']{color:#b8c8d4!important}
-h1,h2,h3{color:var(--lnh-text);letter-spacing:-.02em}.stButton>button{background:#15527f;color:white;border:0;border-radius:6px;font-weight:600;min-height:38px}.stButton>button:hover{background:#0f426a;color:white}
-.lnh-topbar{display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--lnh-line);padding:10px 18px;margin:-1rem -1rem 22px -1rem;color:var(--lnh-muted);font-size:.84rem}
-.lnh-topbar b{color:var(--lnh-text)}.lnh-breadcrumb{color:#67819a;font-size:.78rem;margin-bottom:8px}.lnh-kicker{font-size:.78rem;color:#54728a;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
-.lnh-card{background:var(--lnh-panel);border:1px solid var(--lnh-line);border-radius:9px;padding:16px;min-height:104px;margin-bottom:12px;box-shadow:0 1px 2px rgba(17,42,61,.04)}
-.lnh-card-title{font-weight:700;color:var(--lnh-text);font-size:1rem}.lnh-card-detail{color:var(--lnh-muted);font-size:.87rem;margin-top:6px;line-height:1.4}.lnh-badge{display:inline-block;margin-top:10px;padding:3px 9px;border-radius:99px;background:#e5edf0;color:#36566c;font-size:.75rem;font-weight:700}.lnh-badge.ok{background:#e1eee5;color:#2d6945}.lnh-badge.build{background:#fff0d2;color:#835b12}.lnh-badge.off{background:#edf0f2;color:#66727a}
-.lnh-metric{background:#fff;border:1px solid var(--lnh-line);border-radius:8px;padding:14px 16px}.lnh-section{margin-top:28px}.lnh-empty{border:1px dashed #b9c6cf;background:#f9fbfc;border-radius:8px;padding:14px;color:#667783}
-[data-testid='stTabs'] button{font-weight:650;color:#526776}.stAlert{border-radius:8px}
+:root{--ink:#17232d;--muted:#71808a;--navy:#102531;--blue:#0e5792;--sage:#557d61;--paper:#f4f6f7;--panel:#fff;--line:#dbe2e6;--amber:#9b6b16;--danger:#b64642}#MainMenu,footer,header{visibility:hidden}
+[data-testid='stAppViewContainer']{background:var(--paper);color:var(--ink)}.block-container{max-width:1660px;padding:1.4rem 2.4rem 3.4rem}
+[data-testid='stSidebar']{background:linear-gradient(180deg,#142e3b,#0c202a 76%);min-width:264px;border-right:0}[data-testid='stSidebar'] [data-testid='stSidebarContent']{padding:1.4rem .9rem}
+[data-testid='stSidebar'] .stButton{margin:1px 0}[data-testid='stSidebar'] .stButton button{height:37px!important;background:transparent!important;border:0!important;color:#dbe8ed!important;justify-content:flex-start;padding:0 .75rem;font-size:.84rem;font-weight:580;box-shadow:none!important}[data-testid='stSidebar'] .stButton button[kind='primary']{background:#1d5b84!important;color:#fff!important;border-radius:6px!important}[data-testid='stSidebar'] .stButton button:hover{background:#1a4052!important;color:#fff!important}
+.lnh-sidebar-brand{padding:.35rem .7rem 1.5rem;border-bottom:1px solid rgba(205,226,235,.14);margin-bottom:.7rem}.lnh-sidebar-brand b{display:block;font-size:1.55rem;letter-spacing:.04em;color:#fff}.lnh-sidebar-brand span{display:block;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:#a6c0cc;margin-top:3px}.lnh-nav-group{color:#86b0c3;font-size:.62rem;font-weight:800;letter-spacing:.12em;margin:1.15rem .72rem .34rem}.lnh-sidebar-footer{color:#91aab6;font-size:.68rem;line-height:1.45;margin:2rem .7rem .4rem}
+h1,h2,h3{color:var(--ink);letter-spacing:-.035em}h1{font-size:2rem!important;margin:.05rem 0 .18rem!important}h2{font-size:1.12rem!important;margin:1.5rem 0 .65rem!important}.stCaption{color:var(--muted)!important}.stButton>button{background:var(--blue);border:1px solid var(--blue);border-radius:6px;color:#fff;font-weight:700;min-height:39px;box-shadow:0 1px 2px rgba(17,43,57,.12)}.stButton>button:hover{background:#0b4878;border-color:#0b4878;color:#fff}
+.lnh-shell-header{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:8px;padding:11px 16px;margin-bottom:14px;font-size:.78rem;color:var(--muted)}.lnh-shell-header b{color:var(--ink);letter-spacing:.07em}.lnh-breadcrumb{color:#63819a;font-size:.75rem;margin:0 0 .55rem}.lnh-breadcrumb span{padding:0 .34rem;color:#a7b4bc}.lnh-page-eyebrow,.lnh-kicker{font-size:.64rem;letter-spacing:.12em;color:#39708f;font-weight:800;text-transform:uppercase;margin-bottom:.22rem}
+.lnh-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 17px;min-height:112px;margin:0 0 12px;box-shadow:0 2px 5px rgba(20,40,53,.035)}.lnh-card-title{font-size:.94rem;font-weight:760;color:var(--ink)}.lnh-card-detail{font-size:.81rem;line-height:1.46;color:var(--muted);margin-top:6px}.lnh-badge{display:inline-block;margin-top:10px;padding:3px 9px;border-radius:999px;background:#edf1f3;color:#5e6f78;font-size:.66rem;font-weight:800}.lnh-badge.ok{background:#e2efe6;color:#2e7046}.lnh-badge.build{background:#fff0d2;color:#8b6115}.lnh-badge.off{background:#edf0f2;color:#66747c}
+.lnh-metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-height:104px;box-shadow:0 2px 5px rgba(20,40,53,.03)}.lnh-metric-value{font-size:1.78rem;font-weight:780;line-height:1.15;color:var(--ink)}.lnh-metric-text{font-size:1.04rem}.lnh-metric-note{font-size:.78rem;color:var(--muted);line-height:1.35;margin-top:.38rem}.lnh-empty{border:1px dashed #b9c8d0;background:#fbfcfc;border-radius:8px;padding:16px;color:#627681;font-size:.86rem;line-height:1.5}
+[data-testid='stTabs']{background:#fff;border:1px solid var(--line);border-radius:8px;padding:0 12px;margin-top:.9rem}[data-testid='stTabs'] button{font-size:.77rem;font-weight:720;color:#627682;white-space:nowrap}.stAlert{border-radius:8px}.stDataFrame{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+@media(max-width:900px){.block-container{padding:1rem 1rem 2.3rem}h1{font-size:1.55rem!important}.lnh-card{min-height:auto}}
 </style>""",unsafe_allow_html=True)
-st.sidebar.markdown("# ✧ LNH");st.sidebar.caption("HOLDING")
 if "remote_compute_status" not in st.session_state:
  st.session_state["remote_compute_status"]=runtime().prepare(timeout_seconds=20).to_dict()
-remote=st.session_state["remote_compute_status"]
-if remote["ready"]:st.sidebar.success("Motor de inteligencia listo.")
-elif remote["state"]=="PREPARING":st.sidebar.info("Preparando motor de inteligencia.")
-else:st.sidebar.warning("Cómputo remoto no disponible. Inicie Vast.")
 render_corporate_mission_control(
  st,
  mgc05_root=ROOT,
