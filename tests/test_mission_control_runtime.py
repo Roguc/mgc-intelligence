@@ -36,6 +36,17 @@ class MissionControlRuntimeTests(unittest.TestCase):
 
         self.assertNotEqual(original, updated)
 
+    def test_identity_changes_when_corporate_view_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._make_runtime(root)
+            original = runtime_identity(root)["fingerprint"]
+            (root / "corporate_mission_control.py").write_text("new corporate view\n", encoding="utf-8")
+
+            updated = runtime_identity(root)["fingerprint"]
+
+        self.assertNotEqual(original, updated)
+
     def test_identity_changes_when_provider_changes(self) -> None:
         with patch.dict(os.environ, {"MGC_INFERENCE_PROVIDER": "ollama"}, clear=False):
             ollama = runtime_identity()["fingerprint"]

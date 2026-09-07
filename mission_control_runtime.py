@@ -15,6 +15,7 @@ from pathlib import Path
 RUNTIME_FILES = (
     "app.py",
     "mission_control.py",
+    "corporate_mission_control.py",
     "mgc_05/backend.py",
     "remote_compute.py",
     "alibaba_model_studio.py",

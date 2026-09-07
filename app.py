@@ -4,6 +4,7 @@ import streamlit as st
 from corporate.platform import build_mgc_platform
 from mgc_05.backend import approve_case,correct_case,create_case,run_case
 from mission_control import case_artifacts,evidence_summary,executive_status,human_gate_action,load_case,selected_agent_summary
+from corporate_mission_control import render as render_corporate_mission_control
 from remote_compute import runtime
 ROOT=Path("outputs")/"mgc_05";platform=build_mgc_platform()
 st.set_page_config(page_title="LNH Mission Control",layout="wide")
@@ -15,6 +16,16 @@ remote=st.session_state["remote_compute_status"]
 if remote["ready"]:st.sidebar.success("Motor de inteligencia listo.")
 elif remote["state"]=="PREPARING":st.sidebar.info("Preparando motor de inteligencia.")
 else:st.sidebar.warning("Cómputo remoto no disponible. Inicie Vast.")
+render_corporate_mission_control(
+ st,
+ mgc05_root=ROOT,
+ mgc03_root=Path("outputs")/"mgc_03",
+ create_mgc05_case=create_case,
+ run_mgc05_case=run_case,
+ approve_mgc05_case=approve_case,
+ correct_mgc05_case=correct_case,
+)
+st.stop()
 page=st.sidebar.radio("Navegación",["Inicio","Empresas","Pisos","Agentes","Misiones","Evidencia"])
 st.sidebar.markdown("---");st.sidebar.caption("Vista corporativa")
 def cards(units):
