@@ -5,6 +5,7 @@ import unittest
 from corporate_mission_control import (
     COMPANIES,
     HOLDING_AREAS,
+    agent_reason,
     create_mgc03_case,
     evidence_rows,
     floors,
@@ -36,6 +37,12 @@ class MissionControlCorporateTests(unittest.TestCase):
             summary, rows, _ = evidence_rows(case, "MGC-03")
             self.assertEqual(1, summary["sources"])
             self.assertEqual("No disponible", rows[0]["finding"])
+
+    def test_agent_reasons_keep_mgc03_execution_explicitly_unavailable(self):
+        reason = agent_reason("MGC-03", ["AGIA-MGC-007"])
+        self.assertEqual(1, len(reason))
+        self.assertIn("coincidencia literal", reason[0])
+        self.assertEqual([], agent_reason("MGC-03", []))
 
 
 if __name__ == "__main__":

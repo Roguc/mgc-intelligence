@@ -8,7 +8,22 @@ from corporate_mission_control import render as render_corporate_mission_control
 from remote_compute import runtime
 ROOT=Path("outputs")/"mgc_05";platform=build_mgc_platform()
 st.set_page_config(page_title="LNH Mission Control",layout="wide")
-st.markdown("<style>[data-testid='stAppViewContainer']{background:#f6f3eb;color:#242620}[data-testid='stSidebar']{background:#eeece4;border-right:1px solid #ddd8cb}h1,h2,h3{color:#293b29}.stButton>button{background:#657d5c;color:white;border:0;border-radius:7px}.card{background:#fbfaf6;border:1px solid #e1ddd1;border-radius:10px;padding:16px;margin-bottom:10px}.badge{background:#e5ebdf;color:#40533d;border-radius:14px;padding:3px 9px}</style>",unsafe_allow_html=True)
+st.markdown("""<style>
+:root{--lnh-navy:#102432;--lnh-blue:#1a5a89;--lnh-sage:#5f8069;--lnh-bg:#f4f6f8;--lnh-panel:#ffffff;--lnh-line:#dde4e8;--lnh-text:#1c2a35;--lnh-muted:#687783}
+[data-testid='stAppViewContainer']{background:var(--lnh-bg);color:var(--lnh-text)}
+[data-testid='stSidebar']{background:var(--lnh-navy);border-right:1px solid #253c4c}
+[data-testid='stSidebar'] *{color:#eef4f8!important}
+[data-testid='stSidebar'] .stRadio label{padding:8px 10px;border-radius:6px;margin:2px 0}
+[data-testid='stSidebar'] .stRadio label:has(input:checked){background:#1c5079}
+[data-testid='stSidebar'] [data-testid='stCaptionContainer']{color:#b8c8d4!important}
+h1,h2,h3{color:var(--lnh-text);letter-spacing:-.02em}.stButton>button{background:#15527f;color:white;border:0;border-radius:6px;font-weight:600;min-height:38px}.stButton>button:hover{background:#0f426a;color:white}
+.lnh-topbar{display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--lnh-line);padding:10px 18px;margin:-1rem -1rem 22px -1rem;color:var(--lnh-muted);font-size:.84rem}
+.lnh-topbar b{color:var(--lnh-text)}.lnh-breadcrumb{color:#67819a;font-size:.78rem;margin-bottom:8px}.lnh-kicker{font-size:.78rem;color:#54728a;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.lnh-card{background:var(--lnh-panel);border:1px solid var(--lnh-line);border-radius:9px;padding:16px;min-height:104px;margin-bottom:12px;box-shadow:0 1px 2px rgba(17,42,61,.04)}
+.lnh-card-title{font-weight:700;color:var(--lnh-text);font-size:1rem}.lnh-card-detail{color:var(--lnh-muted);font-size:.87rem;margin-top:6px;line-height:1.4}.lnh-badge{display:inline-block;margin-top:10px;padding:3px 9px;border-radius:99px;background:#e5edf0;color:#36566c;font-size:.75rem;font-weight:700}.lnh-badge.ok{background:#e1eee5;color:#2d6945}.lnh-badge.build{background:#fff0d2;color:#835b12}.lnh-badge.off{background:#edf0f2;color:#66727a}
+.lnh-metric{background:#fff;border:1px solid var(--lnh-line);border-radius:8px;padding:14px 16px}.lnh-section{margin-top:28px}.lnh-empty{border:1px dashed #b9c6cf;background:#f9fbfc;border-radius:8px;padding:14px;color:#667783}
+[data-testid='stTabs'] button{font-weight:650;color:#526776}.stAlert{border-radius:8px}
+</style>""",unsafe_allow_html=True)
 st.sidebar.markdown("# ✧ LNH");st.sidebar.caption("HOLDING")
 if "remote_compute_status" not in st.session_state:
  st.session_state["remote_compute_status"]=runtime().prepare(timeout_seconds=20).to_dict()
